@@ -63,25 +63,32 @@ module AgentHarness
       # Decrypts, opens in editor, encrypts on save
       # @return [Boolean] true if saved successfully
       def edit
+        require "tempfile"
+
         # Load existing or create new
         plaintext = File.exist?(@secrets_path) ? decrypt_file : "{}"
 
-        # Write to temp file
-        temp_path = "/tmp/agent-harness-secrets-#{Time.now.to_i}.yml"
-        File.write(temp_path, plaintext)
+        # Write to secure temp file (0600 permissions, unpredictable name)
+        temp_file = Tempfile.new(["agent-harness-secrets-", ".yml"])
+        temp_file.write(plaintext)
+        temp_file.close
+
+        # Ensure restrictive permissions (Tempfile should be 0600, but be explicit)
+        FileUtils.chmod(0o600, temp_file.path)
 
         # Open in editor
         editor = ENV["EDITOR"] || "nano"
-        system("#{editor} #{temp_path}")
+        system("#{editor} #{temp_file.path}")
 
         # Read back and encrypt
-        new_plaintext = File.read(temp_path)
+        new_plaintext = File.read(temp_file.path)
         encrypt_file(new_plaintext)
 
-        # Cleanup
-        FileUtils.rm_f(temp_path)
-
         true
+      ensure
+        # Cleanup - temp_file may be nil if Tempfile.new failed
+        temp_file&.close
+        temp_file&.unlink
       end
 
       # Generate a new master key
