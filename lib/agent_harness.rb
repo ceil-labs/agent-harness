@@ -29,3 +29,9 @@ require_relative "observability/null_observability"
 
 # Secrets
 require_relative "secrets/file_provider"
+
+# Adapters
+require_relative "adapters/kimi_coding_llm"
+
+# Adapters
+require_relative "adapters/kimi_coding_llm"
