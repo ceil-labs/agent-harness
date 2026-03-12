@@ -59,9 +59,7 @@ module AgentHarness
         return false unless api_key_configured?
 
         Async do
-          # Try a minimal request to verify connectivity
-          # We'll just check if the API responds (even with an error is fine,
-          # as long as we can connect)
+          # Try a minimal request to verify connectivity and authentication
           internet = Async::HTTP::Internet.new
           headers = [
             ["Authorization", "Bearer #{api_key}"],
@@ -74,9 +72,16 @@ module AgentHarness
           response = internet.post(API_ENDPOINT, headers, [body])
           response.finish
           
-          # If we get here without exception, API is reachable
-          # (even 4xx errors mean connectivity is fine)
-          response.status < 500
+          # Check for successful response or client errors (4xx means API is reachable but auth failed)
+          # Only 5xx errors mean the service is down
+          if response.status >= 500
+            false
+          elsif response.status == 401 || response.status == 403
+            # Invalid credentials - API is reachable but auth failed
+            false
+          else
+            true
+          end
         rescue => e
           false
         end.wait
