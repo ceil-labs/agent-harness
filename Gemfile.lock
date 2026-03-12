@@ -33,6 +33,9 @@ GEM
       console (~> 1.0)
     base64 (0.3.0)
     bigdecimal (4.0.1)
+    bundler-audit (0.9.3)
+      bundler (>= 1.2.0)
+      thor (~> 1.0)
     concurrent-ruby (1.3.6)
     console (1.34.3)
       fiber-annotation
@@ -224,6 +227,7 @@ PLATFORMS
 DEPENDENCIES
   async (~> 2.0)
   async-http (~> 0.60)
+  bundler-audit (~> 0.9)
   dry-configurable (~> 1.0)
   dry-validation (~> 1.0)
   falcon (~> 0.45)
@@ -247,6 +251,7 @@ CHECKSUMS
   async-utilization (0.3.1) sha256=89a0d0cfe9ab3e72df56125997328518b5f4dbdcced3d6e5587b45b4dc35170f
   base64 (0.3.0) sha256=27337aeabad6ffae05c265c450490628ef3ebd4b67be58257393227588f5a97b
   bigdecimal (4.0.1) sha256=8b07d3d065a9f921c80ceaea7c9d4ae596697295b584c296fe599dd0ad01c4a7
+  bundler-audit (0.9.3) sha256=81c8766c71e47d0d28a0f98c7eed028539f21a6ea3cd8f685eb6f42333c9b4e9
   concurrent-ruby (1.3.6) sha256=6b56837e1e7e5292f9864f34b69c5a2cbc75c0cf5338f1ce9903d10fa762d5ab
   console (1.34.3) sha256=869fbd74697efc4c606f102d2812b0b008e4e7fd738a91c591e8577140ec0dcc
   dry-configurable (1.3.0) sha256=882d862858567fc1210d2549d4c090f34370fc1bb7c5c1933de3fe792e18afa8

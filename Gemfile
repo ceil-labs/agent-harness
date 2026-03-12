@@ -16,9 +16,6 @@ gem "dry-validation", "~> 1.0"
 # Observability
 gem "prometheus-client", "~> 4.0"
 
-# Encryption for secrets
-gem "rbnacl", "~> 5.0"
-
 # JSON processing
 gem "oj", "~> 3.16"
 
@@ -29,4 +26,5 @@ group :development, :test do
   gem "minitest", "~> 5.25"
   gem "rake", "~> 13.0"
   gem "standard", "~> 1.0"  # Ruby linter/formatter
+  gem "bundler-audit", "~> 0.9"  # Security audit for gems
 end
