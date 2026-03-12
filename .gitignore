@@ -1,0 +1,12 @@
+.env
+.env.local
+config/master.key
+config/secrets.yml.enc
+logs/
+data/
+.bundle/
+vendor/
+.DS_Store
+*.swp
+*.swo
+*~
