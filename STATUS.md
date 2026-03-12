@@ -1,8 +1,8 @@
 # Agent Harness - Phase 0 Implementation Status
 
-**Last Updated:** 2026-03-12  
-**Current Phase:** Phase 0 (Foundation + Observability + Docker)  
-**Status:** In Progress - Core infrastructure complete, LLM providers next
+**Last Updated:** 2026-03-12
+**Current Phase:** Phase 0 (Foundation + Observability + Docker)
+**Status:** In Progress - Core infrastructure complete, 1 of 4 LLM providers implemented
 
 ---
 
@@ -57,6 +57,7 @@ bin/harness security_audit    # Run bundler-audit
 |-----------|--------|
 | bundler-audit integration | ✅ Complete |
 | Security audit script | `bin/security-audit` ✅ |
+| Temp file security fix | ✅ Complete (uses Tempfile with 0600) |
 
 ### 5. Test Infrastructure
 | Component | Location | Status |
@@ -65,52 +66,39 @@ bin/harness security_audit    # Run bundler-audit
 | Contract Tests | `spec/interfaces/*` | ✅ Complete |
 | Test Helper | `spec/test_helper.rb` | ✅ Complete |
 
+### 6. LLM Providers
+| Provider | Location | Status | Tests |
+|----------|----------|--------|-------|
+| Kimi Coding | `lib/adapters/kimi_coding_llm.rb` | ✅ Implemented | 19 passing |
+| MiniMax | `lib/adapters/minimax_llm.rb` | ⬜ Not Started | - |
+| OpenAI | `lib/adapters/openai_llm.rb` | ⬜ Not Started | - |
+| Grok (X) | `lib/adapters/grok_llm.rb` | ⬜ Not Started | - |
+
+**Kimi Coding Features:**
+- Full LLMProvider interface implementation
+- Async HTTP via `Async::HTTP::Internet`
+- Tool calling support (function format)
+- Error handling (rate limits, timeouts, auth)
+- Usage tracking (prompt/completion/total tokens)
+- Proper auth checking in `available?`
+
+**Usage:**
+```ruby
+secrets = AgentHarness::Secrets::FileProvider.new(
+  master_key_path: "config/master.key",
+  secrets_path: "config/secrets.yml.enc"
+)
+
+llm = AgentHarness::Adapters::KimiCodingLLM.new(secrets: secrets)
+response = llm.generate([{ role: "user", content: "Hello" }])
+# => { content: "Hi!", usage: {...}, finish_reason: "stop" }
+```
+
 ---
 
 ## 🚧 In Progress / Next Steps
 
-### Priority 1: LLM Providers
-Implement real LLM providers using the `LLMProvider` interface:
-
-| Provider | Location | API Docs |
-|----------|----------|----------|
-| Kimi Coding | `lib/adapters/kimi_coding_llm.rb` | https://platform.moonshot.cn/docs |
-| MiniMax | `lib/adapters/minimax_llm.rb` | https://api.minimax.chat/ |
-| OpenAI | `lib/adapters/openai_llm.rb` | https://platform.openai.com/docs |
-| Grok (X) | `lib/adapters/grok_llm.rb` | https://docs.x.ai/ |
-
-**Implementation Pattern:**
-```ruby
-class KimiCodingLLM
-  include AgentHarness::LLMProvider
-  
-  def initialize(api_key:, model: "kimi-coding/k2p5", base_url: "https://api.moonshot.cn/v1")
-    @api_key = api_key
-    @model = model
-    @base_url = base_url
-  end
-  
-  def generate(messages, tools: [], &block)
-    # Async HTTP call to Kimi API
-    # Return standardized response hash
-  end
-  
-  def available?
-    # Check API connectivity
-  end
-  
-  def name; "kimi_coding"; end
-  def model; @model; end
-end
-```
-
-**Key Requirements:**
-- Use `Async::HTTP` for non-blocking calls
-- Read API key from secrets provider
-- Handle rate limits, timeouts, errors
-- Return standardized response format
-
-### Priority 2: Telegram Adapter
+### Priority 1: Telegram Adapter
 Implement real Telegram integration:
 
 | Component | Location |
@@ -120,7 +108,7 @@ Implement real Telegram integration:
 
 **Dependencies:** `telegram-bot-ruby` gem (already in Gemfile)
 
-### Priority 3: Configuration System
+### Priority 2: Configuration System
 | Component | Location | Status |
 |-----------|----------|--------|
 | YAML Config Loader | `lib/config/loader.rb` | ⬜ Not Started |
@@ -132,7 +120,7 @@ Implement real Telegram integration:
 - `chat-bot` - Full Phase 0 features
 - `observer` - Logging only, no LLM
 
-### Priority 4: Observability (Real Implementation)
+### Priority 3: Observability (Real Implementation)
 Replace null objects with real implementations:
 
 | Component | Location | Current | Target |
@@ -141,7 +129,7 @@ Replace null objects with real implementations:
 | Metrics | `lib/observability/metrics.rb` | NullMetrics | Prometheus metrics |
 | WebUI | `lib/webui/server.rb` | ⬜ Not Started | Falcon + SSE |
 
-### Priority 5: Docker
+### Priority 4: Docker
 | Component | Status |
 |-----------|--------|
 | Dockerfile | ⬜ Not Started |
@@ -153,13 +141,14 @@ Replace null objects with real implementations:
 ## 📊 Test Status
 
 ```
-Total: 31 tests, 60 assertions, 0 failures
+Total: 50 tests, 104 assertions, 0 failures
 
 Breakdown:
 - Interface contracts: 10 tests
-- Harness core: 8 tests  
+- Harness core: 8 tests
 - Secrets: 10 tests
 - CLI: 3 tests
+- KimiCodingLLM: 19 tests
 ```
 
 Run tests:
@@ -198,6 +187,11 @@ bundle exec rake test_verbose      # Verbose
 - **Rationale:** Don't over-engineer, but don't paint into a corner
 - **Extension points:** `message_bus`, `agent_registry` parameters
 
+### 6. Secrets Injection Pattern
+- **Decision:** LLM adapters receive `secrets` provider, not raw API key
+- **Rationale:** Consistent with DI pattern, allows key rotation without restart
+- **Alternative considered:** Pass API key directly (less flexible)
+
 ---
 
 ## 🔐 Security Checklist
@@ -209,6 +203,7 @@ bundle exec rake test_verbose      # Verbose
 | Secrets file permissions | ✅ | 600 |
 | Zero secrets in env vars | ✅ | All via FileProvider |
 | Audit logging | ✅ | Access logged (name only) |
+| Temp file security | ✅ | Tempfile with 0600, not /tmp |
 | Dependency vulnerability scanning | ✅ | bundler-audit |
 | Static analysis | ⬜ | Add to CI later |
 
@@ -216,57 +211,51 @@ bundle exec rake test_verbose      # Verbose
 
 ## 🚀 How to Continue
 
-### For Next Agent: Implementing Kimi Coding LLM
+### For Next Agent: Implementing Telegram Adapter
 
-1. **Read the interface:**
+1. **Read the interfaces:**
    ```ruby
-   # lib/interfaces/llm_provider.rb
+   # lib/interfaces/input_adapter.rb
+   # lib/interfaces/output_adapter.rb
    ```
 
 2. **Create the adapter:**
    ```bash
-   touch lib/adapters/kimi_coding_llm.rb
+   touch lib/adapters/telegram_adapter.rb
    ```
 
 3. **Implement required methods:**
-   - `generate(messages, tools: [], &block)`
-   - `available?`
-   - `name` → "kimi_coding"
-   - `model` → "kimi-coding/k2p5"
+   - `listen(&block)` - Webhook or long-polling
+   - `stop` - Clean shutdown
+   - `send(message, context:)` - Send messages
+   - `supports_streaming?` - Return false for now
+   - `stream(chunk, context:, finished:)` - No-op for now
 
-4. **Use Async::HTTP for API calls:**
+4. **Use telegram-bot-ruby:**
    ```ruby
-   Async::HTTP::Internet.post(endpoint, headers, body)
+   require "telegram/bot"
    ```
 
-5. **Read API key from secrets:**
+5. **Read token from secrets:**
    ```ruby
-   secrets = Secrets::FileProvider.new(...)
-   api_key = secrets.get("kimi_coding.api_key")
+   secrets.get("telegram.bot_token")
    ```
 
 6. **Write tests:**
    ```bash
-   touch spec/adapters/kimi_coding_llm_test.rb
-   ```
-
-7. **Test with real API key:**
-   ```bash
-   bin/harness secrets_init
-   bin/harness secrets_edit
-   # Add: kimi_coding: { api_key: "your-key" }
+   touch spec/adapters/telegram_adapter_test.rb
    ```
 
 ### Testing Pattern
 
 ```ruby
-class KimiCodingLLMTest < Minitest::Test
-  include AgentHarness::Test::LLMProviderContract
-  
+class TelegramAdapterTest < Minitest::Test
+  include AgentHarness::Test::InputAdapterContract
+  include AgentHarness::Test::OutputAdapterContract
+
   def setup_provider
-    AgentHarness::Adapters::KimiCodingLLM.new(
-      api_key: "test-key",
-      base_url: "https://mock-api.example.com"
+    AgentHarness::Adapters::TelegramAdapter.new(
+      secrets: mock_secrets
     )
   end
 end
@@ -282,6 +271,7 @@ end
 | `lib/harness/harness.rb` | Core async supervisor |
 | `lib/interfaces/*.rb` | Interface contracts |
 | `lib/secrets/file_provider.rb` | Secrets management |
+| `lib/adapters/kimi_coding_llm.rb` | First LLM provider |
 | `bin/harness` | CLI |
 | `spec/support/mock_adapters.rb` | Test mocks |
 | `PHASE0-REQUIREMENTS.md` | Full Phase 0 spec |
@@ -293,7 +283,7 @@ end
 1. **All interfaces are defined** - implement against them
 2. **Tests are required** - follow existing patterns
 3. **Async is mandatory** - use `Async::HTTP`, not blocking calls
-4. **Secrets are ready** - use `FileProvider` for API keys
+4. **Secrets are ready** - use `FileProvider` for API keys/tokens
 5. **Security matters** - run `bin/security-audit` regularly
 6. **Commit often** - push to `main` on GitHub
 
@@ -303,4 +293,4 @@ end
 
 ---
 
-**Ready to hand over.** Next priority: Implement first LLM provider (Kimi Coding).
+**Current Status:** Phase 0 ~35% complete. Core infrastructure solid, first LLM provider implemented. Next priority: Telegram adapter for end-to-end bot functionality.
