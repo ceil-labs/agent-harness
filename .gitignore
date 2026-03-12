@@ -37,3 +37,4 @@ vendor/
 
 # OS
 Thumbs.db
+config/.audit.log

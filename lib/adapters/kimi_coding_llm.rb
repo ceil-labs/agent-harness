@@ -7,7 +7,8 @@ require "json"
 module AgentHarness
   module Adapters
     # Kimi Coding LLM adapter for agent-harness
-    # Uses Moonshot AI API (https://api.moonshot.cn/v1/chat/completions)
+    # Uses Moonshot AI API with Anthropic-compatible format
+    # Endpoint: https://api.kimi.com/coding/v1/messages
     #
     # Example usage:
     #   secrets = AgentHarness::Secrets::FileProvider.new(
@@ -21,8 +22,8 @@ module AgentHarness
     class KimiCodingLLM
       include AgentHarness::LLMProvider
 
-      API_ENDPOINT = "https://api.moonshot.cn/v1/chat/completions"
-      DEFAULT_MODEL = "kimi-coding/k2p5"
+      API_ENDPOINT = "https://api.kimi.com/coding/v1/messages"
+      DEFAULT_MODEL = "k2p5"
       TIMEOUT_SECONDS = 60
 
       # @param secrets [AgentHarness::Secrets::FileProvider] Secrets provider
@@ -66,8 +67,12 @@ module AgentHarness
             ["Content-Type", "application/json"]
           ]
           
-          # Send a minimal test request
-          body = JSON.dump({ model: @model, messages: [{ role: "user", content: "Hi" }], max_tokens: 1 })
+          # Send a minimal test request (Anthropic format)
+          body = JSON.dump({
+            model: @model,
+            messages: [{ role: "user", content: "Hi" }],
+            max_tokens: 1
+          })
           
           response = internet.post(API_ENDPOINT, headers, [body])
           response.finish
@@ -145,20 +150,28 @@ module AgentHarness
         internet&.close
       end
 
-      # Build the request body for the API
+      # Build the request body for the API (Anthropic-compatible format)
       #
       # @param messages [Array<Hash>] Messages
       # @param tools [Array<Hash>] Tool definitions
       # @return [Hash] Request body
       def build_request_body(messages, tools)
+        # Separate system message from conversation
+        system_message = messages.find { |m| m[:role] == "system" }
+        conversation = messages.reject { |m| m[:role] == "system" }
+
         body = {
           model: @model,
-          messages: messages,
-          temperature: 0.7,
+          messages: conversation,
           max_tokens: 4096
         }
 
-        # Add tools if provided
+        # Add system prompt if present
+        if system_message
+          body[:system] = system_message[:content]
+        end
+
+        # Add tools if provided (Anthropic format)
         if tools && !tools.empty?
           body[:tools] = tools.map { |t| format_tool(t) }
         end
@@ -166,22 +179,19 @@ module AgentHarness
         body
       end
 
-      # Format a tool definition for Kimi API
+      # Format a tool definition for Anthropic API
       #
       # @param tool [Hash] Tool definition
       # @return [Hash] Formatted tool
       def format_tool(tool)
         {
-          type: "function",
-          function: {
-            name: tool[:name],
-            description: tool[:description],
-            parameters: tool[:parameters]
-          }
+          name: tool[:name],
+          description: tool[:description],
+          input_schema: tool[:parameters]
         }
       end
 
-      # Parse the API response
+      # Parse the API response (Anthropic-compatible format)
       #
       # @param response_body [String] Raw response body
       # @return [Hash] Parsed response with standardized keys
@@ -193,22 +203,29 @@ module AgentHarness
           raise AgentHarness::LLMError, "Kimi API error: #{data[:error][:message]}"
         end
 
-        choice = data[:choices]&.first
-        message = choice&.dig(:message)
+        # Anthropic format: content is an array of content blocks
+        content_blocks = data[:content] || []
+        text_content = content_blocks
+          .select { |block| block[:type] == "text" }
+          .map { |block| block[:text] }
+          .join
+
+        # Check for tool_use blocks
+        tool_use_blocks = content_blocks.select { |block| block[:type] == "tool_use" }
 
         # Build standardized response
         result = {
-          content: message&.dig(:content),
+          content: text_content.empty? ? nil : text_content,
           usage: extract_usage(data[:usage]),
-          finish_reason: choice&.dig(:finish_reason)&.to_s
+          finish_reason: data[:stop_reason]&.to_s
         }
 
         # Handle tool calls if present
-        if message&.dig(:tool_calls)
-          result[:tool_calls] = message[:tool_calls].map do |tc|
+        if tool_use_blocks.any?
+          result[:tool_calls] = tool_use_blocks.map do |tc|
             {
-              name: tc.dig(:function, :name),
-              arguments: parse_tool_arguments(tc.dig(:function, :arguments))
+              name: tc[:name],
+              arguments: tc[:input] || {}
             }
           end
           result[:content] = nil  # Content is nil when tool_calls are present
@@ -219,7 +236,7 @@ module AgentHarness
         raise AgentHarness::LLMError, "Failed to parse Kimi API response: #{e.message}"
       end
 
-      # Extract usage statistics from API response
+      # Extract usage statistics from API response (Anthropic format)
       #
       # @param usage [Hash] Usage data from API
       # @return [Hash] Standardized usage
@@ -227,9 +244,9 @@ module AgentHarness
         return { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } unless usage
 
         {
-          prompt_tokens: usage[:prompt_tokens] || 0,
-          completion_tokens: usage[:completion_tokens] || 0,
-          total_tokens: usage[:total_tokens] || 0
+          prompt_tokens: usage[:input_tokens] || 0,
+          completion_tokens: usage[:output_tokens] || 0,
+          total_tokens: (usage[:input_tokens] || 0) + (usage[:output_tokens] || 0)
         }
       end
 

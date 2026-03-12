@@ -31,7 +31,7 @@ class KimiCodingLLMTest < Minitest::Test
   end
 
   def test_model_returns_configured_model
-    assert_equal "kimi-coding/k2p5", @llm.model
+    assert_equal "k2p5", @llm.model
   end
 
   def test_model_can_be_customized
@@ -73,20 +73,33 @@ class KimiCodingLLMTest < Minitest::Test
         parameters: { type: "object", properties: {} }
       }
     ]
-    
+
     body = @llm.send(:build_request_body, [{ role: "user", content: "Test" }], tools)
-    
-    assert_equal "kimi-coding/k2p5", body[:model]
+
+    assert_equal "k2p5", body[:model]
     assert body[:tools]
-    assert_equal "function", body[:tools].first[:type]
-    assert_equal "test_tool", body[:tools].first[:function][:name]
+    assert_equal "test_tool", body[:tools].first[:name]
+    assert_equal "A test tool", body[:tools].first[:description]
+    assert_equal({ type: "object", properties: {} }, body[:tools].first[:input_schema])
   end
 
   def test_build_request_body_without_tools
     body = @llm.send(:build_request_body, [{ role: "user", content: "Test" }], [])
-    
-    assert_equal "kimi-coding/k2p5", body[:model]
+
+    assert_equal "k2p5", body[:model]
     refute body[:tools]
+  end
+
+  def test_build_request_body_extracts_system_message
+    messages = [
+      { role: "system", content: "You are helpful" },
+      { role: "user", content: "Hello" }
+    ]
+
+    body = @llm.send(:build_request_body, messages, [])
+
+    assert_equal "You are helpful", body[:system]
+    assert_equal [{ role: "user", content: "Hello" }], body[:messages]
   end
 
   def test_extract_usage_returns_defaults_when_nil
@@ -99,76 +112,40 @@ class KimiCodingLLMTest < Minitest::Test
 
   def test_extract_usage_extracts_values
     api_usage = {
-      prompt_tokens: 10,
-      completion_tokens: 20,
-      total_tokens: 30
+      input_tokens: 10,
+      output_tokens: 20
     }
-    
+
     usage = @llm.send(:extract_usage, api_usage)
-    
+
     assert_equal 10, usage[:prompt_tokens]
     assert_equal 20, usage[:completion_tokens]
     assert_equal 30, usage[:total_tokens]
   end
 
   def test_extract_usage_handles_missing_keys
-    api_usage = { total_tokens: 50 }
-    
+    api_usage = { input_tokens: 50 }
+
     usage = @llm.send(:extract_usage, api_usage)
-    
-    assert_equal 0, usage[:prompt_tokens]
+
+    assert_equal 50, usage[:prompt_tokens]
     assert_equal 0, usage[:completion_tokens]
     assert_equal 50, usage[:total_tokens]
   end
 
-  def test_parse_tool_arguments_parses_json_string
-    args = '{"key": "value", "num": 42}'
-    result = @llm.send(:parse_tool_arguments, args)
-    
-    assert_equal "value", result[:key]
-    assert_equal 42, result[:num]
-  end
-
-  def test_parse_tool_arguments_returns_hash_if_already_hash
-    args = { key: "value" }
-    result = @llm.send(:parse_tool_arguments, args)
-    
-    assert_equal args, result
-  end
-
-  def test_parse_tool_arguments_returns_empty_hash_for_nil
-    result = @llm.send(:parse_tool_arguments, nil)
-    
-    assert_equal({}, result)
-  end
-
-  def test_parse_tool_arguments_handles_invalid_json
-    result = @llm.send(:parse_tool_arguments, 'invalid json')
-    
-    assert_equal({ raw: 'invalid json' }, result)
-  end
-
   def test_parse_response_with_tool_calls
     api_response = {
-      choices: [{
-        message: {
-          content: nil,
-          tool_calls: [{
-            function: {
-              name: "test_tool",
-              arguments: '{"arg": "value"}'
-            }
-          }]
-        },
-        finish_reason: "tool_calls"
-      }],
-      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+      content: [
+        { type: "tool_use", name: "test_tool", input: { arg: "value" } }
+      ],
+      stop_reason: "tool_use",
+      usage: { input_tokens: 10, output_tokens: 5 }
     }.to_json
-    
+
     result = @llm.send(:parse_response, api_response)
-    
+
     assert_nil result[:content]
-    assert_equal "tool_calls", result[:finish_reason]
+    assert_equal "tool_use", result[:finish_reason]
     assert result[:tool_calls]
     assert_equal "test_tool", result[:tool_calls].first[:name]
     assert_equal({ arg: "value" }, result[:tool_calls].first[:arguments])
@@ -176,18 +153,33 @@ class KimiCodingLLMTest < Minitest::Test
 
   def test_parse_response_with_content
     api_response = {
-      choices: [{
-        message: { content: "Hello!" },
-        finish_reason: "stop"
-      }],
-      usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 }
+      content: [
+        { type: "text", text: "Hello!" }
+      ],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 5, output_tokens: 2 }
     }.to_json
-    
+
     result = @llm.send(:parse_response, api_response)
-    
+
     assert_equal "Hello!", result[:content]
-    assert_equal "stop", result[:finish_reason]
+    assert_equal "end_turn", result[:finish_reason]
     refute result.key?(:tool_calls)
+  end
+
+  def test_parse_response_with_multiple_content_blocks
+    api_response = {
+      content: [
+        { type: "text", text: "Let me help" },
+        { type: "text", text: " you with that." }
+      ],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 5, output_tokens: 4 }
+    }.to_json
+
+    result = @llm.send(:parse_response, api_response)
+
+    assert_equal "Let me help you with that.", result[:content]
   end
 
   def test_parse_response_raises_on_api_error
@@ -216,12 +208,12 @@ class KimiCodingLLMTest < Minitest::Test
       description: "Does something",
       parameters: { type: "object", properties: {} }
     }
-    
+
     result = @llm.send(:format_tool, tool)
-    
-    assert_equal "function", result[:type]
-    assert_equal "my_tool", result[:function][:name]
-    assert_equal "Does something", result[:function][:description]
+
+    assert_equal "my_tool", result[:name]
+    assert_equal "Does something", result[:description]
+    assert_equal({ type: "object", properties: {} }, result[:input_schema])
   end
 
   private
