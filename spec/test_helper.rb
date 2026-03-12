@@ -3,6 +3,7 @@
 $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 
 require "minitest/autorun"
+require "async"
 require "agent_harness"
 
 # Load contract tests
@@ -10,14 +11,17 @@ require_relative "interfaces/input_adapter_contract"
 require_relative "interfaces/output_adapter_contract"
 require_relative "interfaces/llm_provider_contract"
 
+# Load test support
+require_relative "support/mock_adapters"
+
 # Test timeout for async operations
 TEST_TIMEOUT = 5
 
 module Minitest
   class Test
     # Helper to run async code in tests
-    def run_async(&block)
-      Async { block.call }.wait
+    def async(&block)
+      Async { block.call }
     end
 
     # Helper to wait for condition with timeout
