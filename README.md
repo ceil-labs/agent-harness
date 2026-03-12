@@ -6,7 +6,7 @@ Multi-provider LLM agent harness with Ruby 4+, async runtime, and extensible obs
 
 **Phase:** 0 — Foundation (In Progress)  
 **Last Updated:** 2026-03-12  
-**Test Status:** 48 tests, 103 assertions, 0 failures
+**Test Status:** 82 tests, 210 assertions, 0 failures
 
 ## What's Working
 
@@ -17,8 +17,9 @@ Multi-provider LLM agent harness with Ruby 4+, async runtime, and extensible obs
 | Interface Contracts | ✅ | InputAdapter, OutputAdapter, LLMProvider |
 | Core Harness | ✅ | Async supervisor, message routing, DI container |
 | Secrets Management | ✅ | AES-256-GCM encryption, audit logging |
+| Observability | ✅ | JSON logger, Prometheus metrics, metrics server |
 | Kimi Coding LLM | ✅ | Full implementation, Anthropic-compatible API |
-| Test Infrastructure | ✅ | Contract tests, mocks, 48 tests passing |
+| Test Infrastructure | ✅ | Contract tests, mocks, 82 tests passing |
 
 ### 🚧 In Progress
 
@@ -26,7 +27,6 @@ Multi-provider LLM agent harness with Ruby 4+, async runtime, and extensible obs
 |-----------|--------|
 | Telegram Adapter | Planned |
 | Configuration System | Not Started |
-| Real Observability | Null objects only |
 | Docker | Not Started |
 
 ## Quick Start
@@ -42,11 +42,62 @@ bin/harness secrets_edit
 
 # Run tests
 bundle exec rake test
-
-# Use the harness (see examples/)
 ```
 
 ## Usage
+
+### Using Observability
+
+The harness supports both real observability (production) and null implementations (testing).
+
+#### Production Mode (with observability)
+
+```ruby
+require "agent_harness"
+
+# Create full observability stack
+obs = AgentHarness::ObservabilityFactory.create_default(
+  log_level: :info,
+  log_file: "/app/logs/agent.log",
+  metrics_port: 9090
+)
+
+# Use in harness
+harness = AgentHarness::Harness.new(
+  agent_id: "bot-001",
+  input: telegram_adapter,
+  output: telegram_adapter,
+  llm: kimi_llm,
+  logger: obs[:logger],
+  metrics: obs[:metrics]
+)
+
+# Start metrics server (in separate fiber)
+Async { obs[:metrics_server].start }
+
+# Start harness
+harness.start
+```
+
+**Metrics endpoints:**
+- `GET /metrics` - Prometheus format
+- `GET /health` - Health check
+
+#### Testing Mode (minimal overhead)
+
+```ruby
+# Use null implementations for tests
+null_obs = AgentHarness::ObservabilityFactory.create_null()
+
+harness = AgentHarness::Harness.new(
+  agent_id: "test",
+  input: mock_input,
+  output: mock_output,
+  llm: mock_llm,
+  logger: null_obs[:logger],    # No-op
+  metrics: null_obs[:metrics]   # No-op
+)
+```
 
 ### Using the Kimi Coding LLM Adapter
 
@@ -70,29 +121,50 @@ response = llm.generate([
   { role: "user", content: "Hello!" }
 ])
 
-puts response[:content]           # => "Hello! How can I help?"
+puts response[:content]               # => "Hello! How can I help?"
 puts response[:usage][:total_tokens]  # => 27
 ```
 
-### Using the Harness Core
+## Testing Observability
+
+### Test the Logger
 
 ```ruby
-# Create adapters
-input = MyInputAdapter.new
-tput = MyOutputAdapter.new
-llm = AgentHarness::Adapters::KimiCodingLLM.new(secrets: secrets)
-
-# Initialize harness
-harness = AgentHarness::Harness.new(
-  agent_id: "my-agent-001",
-  input: input,
-  output: output,
-  llm: llm,
-  config: { system_prompt: "You are a helpful assistant." }
+# Create logger
+logger = AgentHarness::ObservabilityFactory.create_logger(
+  level: :info,
+  file_path: "/tmp/test.log"
 )
 
-# Start (blocks until stop)
-harness.start
+# Log events
+logger.info("test.started", { agent_id: "test-001" })
+logger.warn("test.slow", { latency_ms: 5000 })
+
+# Check output
+cat /tmp/test.log
+# => {"timestamp":"2026-03-12T...","level":"info","event":"test.started",...}
+```
+
+### Test the Metrics Server
+
+```ruby
+# Terminal 1: Start server
+metrics = AgentHarness::ObservabilityFactory.create_metrics
+server = AgentHarness::ObservabilityFactory.create_metrics_server(
+  metrics: metrics, port: 9090
+)
+
+# Record some metrics
+metrics.increment(:messages_total, labels: { agent_id: "test" })
+
+# Start server
+server.start  # Blocks
+```
+
+```bash
+# Terminal 2: Query endpoints
+curl http://localhost:9090/health
+curl http://localhost:9090/metrics
 ```
 
 ## Architecture
@@ -113,31 +185,46 @@ harness.start
 │  (Telegram/Web) │      │ (Kimi/MiniMax/  │      │  (Telegram/Web) │
 │                 │──────│  OpenAI/Grok)   │──────│                 │
 └─────────────────┘      └─────────────────┘      └─────────────────┘
+          │                       │
+          └───────────────────────┴──────┐
+                                         ▼
+                              ┌─────────────────────┐
+                              │   Observability     │
+                              │  ┌───────────────┐  │
+                              │  │ JSON Logger   │  │
+                              │  │ Prometheus    │  │
+                              │  │ Metrics       │  │
+                              │  └───────────────┘  │
+                              └─────────────────────┘
 ```
 
 ## Project Structure
 
 ```
 lib/
-├── agent_harness.rb          # Main entry point
+├── agent_harness.rb              # Main entry + ObservabilityFactory
 ├── interfaces/
-│   ├── input_adapter.rb      # Input contract
-│   ├── output_adapter.rb     # Output contract
-│   └── llm_provider.rb       # LLM contract
+│   ├── input_adapter.rb          # Input contract
+│   ├── output_adapter.rb         # Output contract
+│   └── llm_provider.rb           # LLM contract
 ├── harness/
-│   └── harness.rb            # Core async supervisor
+│   └── harness.rb                # Core async supervisor
 ├── adapters/
-│   └── kimi_coding_llm.rb    # Kimi Coding implementation
+│   └── kimi_coding_llm.rb        # Kimi Coding implementation
 ├── secrets/
-│   └── file_provider.rb      # Encrypted secrets
+│   └── file_provider.rb          # Encrypted secrets
 └── observability/
-    └── null_observability.rb # Placeholders for Phase 4
+    ├── logger.rb                 # JSON structured logging
+    ├── metrics.rb                # Prometheus metrics
+    ├── metrics_server.rb         # HTTP server (/metrics, /health)
+    └── null_observability.rb     # Null objects (testing/minimal)
 
 spec/
-├── interfaces/               # Contract tests
-├── harness/                  # Core tests
-├── adapters/                 # Adapter tests
-└── secrets/                  # Security tests
+├── interfaces/                   # Contract tests
+├── harness/                      # Core tests
+├── adapters/                     # Adapter tests
+├── observability/                # Logger + metrics tests
+└── secrets/                      # Security tests
 ```
 
 ## Security
@@ -183,8 +270,8 @@ bin/security-audit
 
 ## Documentation
 
+- [STATUS.md](./STATUS.md) — Current implementation status + testing guide
 - [Phase 0 Requirements](./PHASE0-REQUIREMENTS.md) — Detailed specification
-- [STATUS.md](./STATUS.md) — Current implementation status
 - Original research: `~/.openclaw/workspace/researches/in-progress/agent-harness/`
 
 ## License
