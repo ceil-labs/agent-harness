@@ -8,7 +8,12 @@ require "agent_harness"
 
 module AgentHarness
   class CLI < Thor
-    desc "secrets:init", "Initialize secrets with new master key"
+    # Thor 1.3+ compatibility
+    def self.exit_on_failure?
+      true
+    end
+
+    desc "secrets_init", "Initialize secrets with new master key"
     def secrets_init
       key = Secrets::FileProvider.init(master_key_path: "config/master.key")
       puts "✅ Master key generated: config/master.key"
@@ -16,27 +21,27 @@ module AgentHarness
       puts "⚠️  Keep this file secure! Add to .gitignore"
     end
 
-    desc "secrets:edit", "Edit encrypted secrets"
+    desc "secrets_edit", "Edit encrypted secrets"
     def secrets_edit
       provider = create_provider
       provider.edit
       puts "✅ Secrets updated: config/secrets.yml.enc"
     end
 
-    desc "secrets:list", "List secret names (not values)"
+    desc "secrets_list", "List secret names (not values)"
     def secrets_list
       provider = create_provider
       names = provider.list
 
       if names.empty?
-        puts "No secrets found. Run `bin/harness secrets:edit` to add some."
+        puts "No secrets found. Run `bin/harness secrets_edit` to add some."
       else
         puts "🔐 Secrets:"
         names.each { |n| puts "  - #{n}" }
       end
     end
 
-    desc "security:audit", "Run security audit"
+    desc "security_audit", "Run security audit"
     def security_audit
       exec("bin/security-audit")
     end

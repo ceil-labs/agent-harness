@@ -20,6 +20,7 @@ result = Bundler::Audit::CLI.start(["check"])
 
 if result == 0
   puts "\n✅ No vulnerabilities found!"
+  exit 0
 else
   puts "\n⚠️  Vulnerabilities detected - review above"
   exit 1
