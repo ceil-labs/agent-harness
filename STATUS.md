@@ -50,9 +50,22 @@ Run `ruby smoke_test.rb` to verify fixes.
 
 **Note:** Metrics currently show test data (from `test_metrics_server.rb`). Real harness metrics require Telegram adapter to be operational.
 
----
+### 5. Telegram Adapter (NEW - Just Implemented)
+| Component | File | Status | How to Verify |
+|-----------|------|--------|---------------|
+| Telegram Adapter | `lib/adapters/telegram_adapter.rb` | ✅ Complete | `bundle exec rake test` |
+| Input/Output Interfaces | Implements both | ✅ Complete | Contract tests pass |
+| Echo Test | `test_telegram_echo.rb` | ✅ Working | Send message to @ceil_harness_bot |
+| Streaming Support | Edit messages | ✅ Complete | `supports_streaming?` returns true |
 
-## 🔍 Verification Scripts
+**Verified:**
+```bash
+ruby test_telegram_echo.rb
+# Then message @ceil_harness_bot on Telegram
+# Expected: "Echo: your message" reply
+```
+
+**Bot:** @ceil_harness_bot (ID: 8641259265)
 
 ### Test Kimi Coding LLM (Verified Working)
 
@@ -144,73 +157,36 @@ Run: bundle exec rake test
 
 ---
 
-## 🚧 Next Priority: Telegram Adapter
+## 🚧 Next Priority: Full Harness Integration
 
-**Why next:** Core infrastructure is solid. We need end-to-end message flow to prove it works.
+**Why next:** Telegram adapter works. Now wire it into the harness for complete flow.
 
 **What to build:**
-- `lib/adapters/telegram_adapter.rb`
-- Implements both `InputAdapter` and `OutputAdapter`
-- Uses `telegram-bot-ruby` gem (already in Gemfile)
+- Harness configuration to use TelegramAdapter
+- End-to-end: Telegram → Harness → Kimi LLM → Harness → Telegram
+- Handle errors gracefully
+- Add real metrics (not test data)
 
-**Acceptance Criteria:**
-1. Telegram bot responds to messages
-2. Latency < 3s p95
-3. Flow works: Telegram → Harness → Kimi LLM → Harness → Telegram
+**Test the full flow:**
+```bash
+ruby -I lib -e '
+require "agent_harness"
 
-**Getting Started:**
+secrets = AgentHarness::Secrets::FileProvider.new(...)
 
-1. **Read interfaces first:**
-   ```ruby
-   # lib/interfaces/input_adapter.rb
-   # lib/interfaces/output_adapter.rb
-   ```
+harness = AgentHarness::Harness.new(
+  input: AgentHarness::Adapters::TelegramAdapter.new(secrets: secrets),
+  output: AgentHarness::Adapters::TelegramAdapter.new(secrets: secrets),
+  llm: AgentHarness::Adapters::KimiCodingLLM.new(secrets: secrets),
+  agent_id: "telegram-bot",
+  config: { system_prompt: "You are Ceil, a helpful assistant." }
+)
 
-2. **Create adapter:**
-   ```bash
-   touch lib/adapters/telegram_adapter.rb
-   touch spec/adapters/telegram_adapter_test.rb
-   ```
+harness.run
+'
+```
 
-3. **Get bot token:**
-   - Talk to @BotFather on Telegram
-   - Store token: `bin/harness secrets_edit`
-   - Add: `telegram: { bot_token: "your-token" }`
-
-4. **Implement methods:**
-   ```ruby
-   class TelegramAdapter
-     include AgentHarness::InputAdapter
-     include AgentHarness::OutputAdapter
-     
-     def listen(&block)
-       # Start webhook or long-polling
-       # Call block for each message
-     end
-     
-     def send(message, context:)
-       # Send message via Telegram API
-     end
-     
-     def stop; end
-   end
-   ```
-
-5. **Test pattern:**
-   ```ruby
-   class TelegramAdapterTest < Minitest::Test
-     include AgentHarness::Test::InputAdapterContract
-     include AgentHarness::Test::OutputAdapterContract
-     
-     def setup_provider
-       AgentHarness::Adapters::TelegramAdapter.new(
-         secrets: mock_secrets
-       )
-     end
-   end
-   ```
-
-**Reference:** See `spec/support/mock_adapters.rb` for mock patterns.
+**Expected:** Message bot → LLM processes → Response sent back
 
 ---
 
@@ -241,7 +217,7 @@ From `PHASE0-REQUIREMENTS.md`:
 
 | Criterion | Status | How to Verify |
 |-----------|--------|---------------|
-| F1: Telegram bot responds | 🚧 NOT STARTED | Manual test |
+| F1: Telegram bot responds | ✅ Complete | `ruby test_telegram_echo.rb` |
 | F2: 100+ concurrent connections | ✅ Core supports this | Load test when Telegram done |
 | F3: Structured JSON logs | ✅ Complete | See "Test Logger" above |
 | F4: Metrics endpoint | ✅ Complete | `curl https://ciel.tailcd23a1.ts.net/metrics/metrics` |

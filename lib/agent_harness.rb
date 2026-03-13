@@ -96,3 +96,4 @@ require_relative "secrets/file_provider"
 
 # Adapters
 require_relative "adapters/kimi_coding_llm"
+require_relative "adapters/telegram_adapter"
