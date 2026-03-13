@@ -190,6 +190,27 @@ harness.run
 
 ---
 
+## 🔮 Future Phases / Considerations
+
+### Phase N: Scalability & Production Hardening
+
+| Item | Current State | Future Consideration |
+|------|---------------|---------------------|
+| **Telegram Transport** | Long polling | Webhooks for high-traffic scenarios |
+| **Resource Usage** | Minimal (1 persistent conn) | Webhooks scale better for 10k+ msg/min |
+| **Implementation** | `telegram-bot-ruby` with `bot.listen` | `set_webhook` + HTTPS endpoint |
+| **Tradeoff** | Simpler, works behind NAT | Requires public HTTPS, more infra |
+
+**When to consider webhooks:**
+- Bot handles 10,000+ messages/minute
+- Running multiple bots (long polling = N connections)
+- Strict latency requirements (webhooks are instant)
+- Infrastructure already has public HTTPS endpoint
+
+**Current recommendation:** Long polling is correct for Phase 0-1 (personal use, low traffic, simpler infra)
+
+---
+
 ## 📝 Key Files for Next Agent
 
 | File | Why It Matters |
