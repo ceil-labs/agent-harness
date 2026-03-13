@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  harness:
+    build: .
+    container_name: agent-harness
+    restart: unless-stopped
+    
+    # Mount secrets from host (read-only)
+    volumes:
+      - ./config/master.key:/app/config/master.key:ro
+      - ./config/secrets.yml.enc:/app/config/secrets.yml.enc:ro
+      - harness-data:/app/data
+      - harness-logs:/app/logs
+    
+    # Environment
+    environment:
+      - RUBY_ENV=production
+      - AGENT_ID=ceil-phase0
+    
+    # Port for metrics
+    ports:
+      - "127.0.0.1:9090:9090"
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  harness-data:
+  harness-logs:

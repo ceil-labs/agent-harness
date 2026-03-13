@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Ruby
+.bundle
+vendor/cache
+*.gem
+
+# Test files
+spec/
+test/
+coverage/
+
+# Development
+.env
+.env.local
+.byebug_history
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts
+docker-compose*.yml
+Dockerfile*
+
+# Documentation (keep in repo, not in image)
+*.md
+PHASE*.md
+STATUS.md

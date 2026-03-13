@@ -57,6 +57,7 @@ Run `ruby smoke_test.rb` to verify fixes.
 | Input/Output Interfaces | Implements both | ✅ Complete | Contract tests pass |
 | Echo Test | `test_telegram_echo.rb` | ✅ Working | Send message to @ceil_harness_bot |
 | Streaming Support | Edit messages | ✅ Complete | `supports_streaming?` returns true |
+| **Phase 0 Harness** | `run_phase0.rb` | ⚠️ **BLOCKER** | Process stops after ~40s in background |
 
 **Verified:**
 ```bash
@@ -65,7 +66,57 @@ ruby test_telegram_echo.rb
 # Expected: "Echo: your message" reply
 ```
 
+**Blocker - Phase 0 Harness Runner:**
+- Direct execution: ✅ Works (processes messages end-to-end)
+- Background/nohup: ❌ Process stops after ~40 seconds
+- Root cause: Unknown (possibly async/Telegram listener issue)
+
 **Bot:** @ceil_harness_bot (ID: 8641259265)
+
+---
+
+## 🔴 Current Blocker: Harness Background Execution
+
+### Problem
+The harness works perfectly when run directly but stops after ~40 seconds when run in background (`nohup`, `&`, systemd).
+
+### Evidence
+```bash
+# Direct execution - works
+ruby run_simple.rb
+# ✅ Processes messages correctly
+
+# Background execution - fails
+nohup ruby run_simple.rb &
+# ❌ Process stops after ~40s
+# Logs show: telegram_adapter.stopped, harness.cleanup_complete
+```
+
+### What Works
+- ✅ Telegram adapter receives messages
+- ✅ LLM generates responses  
+- ✅ Responses sent to Telegram
+- ✅ All tests pass (97 tests)
+
+### What Doesn't Work
+- ❌ Process persistence in background
+- ❌ Metrics server (when started in separate thread)
+
+### Suspected Causes
+1. Async reactor stops when parent process detaches
+2. Telegram `bot.listen` loop exits on SIGHUP/SIGTERM
+3. Thread/fiber interaction with nohup
+
+### Potential Solutions
+1. **Docker container** — Process runs as PID 1, no terminal detachment issues
+2. **systemd service** — Proper signal handling, auto-restart
+3. **screen/tmux** — Keep terminal session alive
+4. **Debug signal handling** — Add signal traps, ensure SIGPIPE/SIGHUP ignored
+
+### Recommended Next Step
+Dockerize the harness for proper process isolation and persistence.
+
+---
 
 ### Test Kimi Coding LLM (Verified Working)
 
