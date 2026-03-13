@@ -287,3 +287,100 @@ From `PHASE0-REQUIREMENTS.md`:
 ---
 
 **Bottom Line:** Core is solid. Observability is done and tested. Next agent should implement Telegram adapter for end-to-end functionality.
+
+---
+
+## 🎯 Next Steps (Phase 0 Cleanup)
+
+**Context:** Phase 0 core functionality is complete and verified working. Next session focuses on hardening, testing, and documentation.
+
+### Status: What's Done vs What's Next
+
+| Area | Status | What's Needed |
+|------|--------|---------------|
+| **Core Functionality** | ✅ Complete | Telegram → LLM → Response working |
+| **Docker Container** | ✅ Running | Needs cleanup and optimization |
+| **Unit Tests** | ✅ 97 passing | Integration tests needed |
+| **Observability** | ✅ Basic | Log persistence, error tracking |
+| **Documentation** | ⚠️ Partial | Setup guide, configuration reference |
+| **Developer Experience** | ⚠️ Okay | One-command setup needed |
+
+### Detailed Tasks (Next Session)
+
+#### 1. Docker Cleanup (High Priority)
+- [ ] Consolidate image naming (remove `agent-harness-harness:latest`)
+- [ ] Add `.env.example` with all configuration options
+- [ ] Test `docker-compose up` from clean state
+- [ ] Optimize image size (currently 877MB)
+- [ ] Add log rotation for persisted logs
+- [ ] Document volume mounts (secrets, logs, data)
+
+#### 2. Testing (High Priority)
+**Challenge:** Can't use real Telegram bot/LLM in automated tests
+
+**Proposed Solution:**
+```
+spec/
+├── unit/           # Existing 97 tests ✅
+├── integration/    # NEW - Mock external APIs
+│   ├── telegram_adapter_spec.rb
+│   ├── kimi_llm_spec.rb
+│   └── harness_integration_spec.rb
+└── e2e/            # NEW - Manual only
+    └── README.md
+```
+
+**Tools:** WebMock for HTTP stubbing, VCR for recording/replaying
+
+#### 3. Observability Improvements
+- [ ] Persist logs to volume (currently lost on restart)
+- [ ] Add error tracking (webhook to OpenClaw on errors)
+- [ ] Add request tracing (correlation IDs)
+- [ ] Document Prometheus endpoint for Grafana
+
+#### 4. Documentation
+- [ ] Setup guide (zero to running)
+- [ ] Configuration reference (env vars, secrets)
+- [ ] Testing guide (how to run tests, add new ones)
+- [ ] Troubleshooting guide (common issues)
+
+### Open Questions
+
+1. **Testing:** Mock at HTTP level or adapter level?
+2. **Secrets:** Files vs environment variables for Docker?
+3. **LLM in tests:** Mock responses or use cheap model?
+4. **Error alerting:** Simple webhook or full Sentry?
+
+### Resources
+
+- **Planning Doc:** `workspace/researches/in-progress/agent-harness-phase0-cleanup.md`
+- **Memory:** `workspace/memory/2026-03-13.md`
+- **Working Harness:** `docker ps | grep agent-harness`
+- **Verify Working:** Send message to @ceil_harness_bot
+
+### Quick Commands for Next Agent
+
+```bash
+# Check current state
+cd ~/.openclaw/agent-harness
+docker ps | grep agent-harness
+curl http://127.0.0.1:9090/health
+docker logs --tail 20 agent-harness
+
+# Run tests
+bundle exec rspec
+
+# Restart harness
+docker-compose restart harness
+```
+
+---
+
+**Phase 0 Definition of Done:**
+- [x] Core functionality (Telegram → LLM → Response)
+- [x] Docker container running
+- [x] Basic metrics
+- [ ] Clean Docker setup (one-command start) ← Next
+- [ ] Integration tests ← Next
+- [ ] Complete documentation ← Next
+- [ ] Observable (logs persisted, errors tracked) ← Next
