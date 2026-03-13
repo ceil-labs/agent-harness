@@ -5,6 +5,10 @@ FROM ruby:4.0.1-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
+    curl \
+    libssl-dev \
+    libreadline-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -12,13 +16,15 @@ WORKDIR /app
 
 # Copy Gemfile and install dependencies
 COPY Gemfile Gemfile.lock ./
-RUN bundle install --deployment --without development test
+RUN bundle config set frozen false && \
+    bundle config set without 'development test' && \
+    bundle install
 
 # Copy application code
 COPY lib ./lib
 COPY bin ./bin
 COPY config ./config
-COPY run_simple.rb ./
+COPY *.rb ./
 
 # Create directories for runtime data
 RUN mkdir -p /app/data /app/logs
@@ -39,5 +45,5 @@ USER harness
 # Expose metrics port
 EXPOSE 9090
 
-# Start the harness
-CMD ["ruby", "run_simple.rb"]
+# Start the harness with unbuffered output
+CMD ["ruby", "-e", "STDOUT.sync=true; load 'run_phase0.rb'"]
