@@ -27,9 +27,11 @@ module AgentHarness
 
       # @param secrets [AgentHarness::Secrets::FileProvider] Secrets provider
       # @param logger [Logger] Optional logger instance
-      def initialize(secrets:, logger: nil)
+      # @param allowlist [Array<Integer>] List of allowed sender_ids (nil = allow all)
+      def initialize(secrets:, logger: nil, allowlist: nil)
         @secrets = secrets
         @logger = logger
+        @allowlist = allowlist
         @bot = nil
         @listening = false
         @stop_signal = Async::Condition.new
@@ -59,6 +61,16 @@ module AgentHarness
                 next unless telegram_message.text
 
                 standardized = standardize_message(telegram_message)
+
+                # Check allowlist
+                if @allowlist && !@allowlist.include?(standardized[:sender_id])
+                  @logger&.warn("telegram_adapter.unauthorized", {
+                    sender_id: standardized[:sender_id],
+                    chat_id: standardized[:chat_id]
+                  }) if @logger
+                  next
+                end
+
                 @logger&.info("telegram_adapter.message_received", {
                   message_id: standardized[:id],
                   chat_id: standardized[:chat_id],

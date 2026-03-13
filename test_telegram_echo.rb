@@ -31,11 +31,12 @@ rescue => e
   exit 1
 end
 
-# Create adapter with logger
+# Create adapter with logger and allowlist
 logger = AgentHarness::ObservabilityFactory.create_logger(level: :info)
 adapter = AgentHarness::Adapters::TelegramAdapter.new(
   secrets: secrets,
-  logger: logger
+  logger: logger,
+  allowlist: [8154042516]  # Only respond to Victor
 )
 
 # Check if bot is available
