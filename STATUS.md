@@ -1,7 +1,7 @@
 # Agent Harness - Handover Status
 
 **For:** Next Agent  
-**Last Updated:** 2026-03-12  
+**Last Updated:** 2026-03-13  
 **Phase:** 0 (Foundation + Observability)  
 **Overall Completion:** ~60%
 
@@ -26,6 +26,29 @@
 | Null Objects | `lib/observability/null_observability.rb` | No-ops for testing | Use in tests |
 
 **Note:** `null_observability.rb` is intentionally kept for testing mode.
+
+### 3. Bug Fixes (2026-03-13)
+| Issue | File | Fix |
+|-------|------|-----|
+| Falcon LoadError | `lib/observability/metrics_server.rb` | Removed `require falcon/service/supervised` (doesn't exist in Falcon 0.55.2) |
+| Label mismatch | `lib/harness/harness.rb` | Added `provider: @llm.name` to `llm_request_duration_seconds` labels |
+| Rack integration | `lib/observability/metrics_server.rb` | Removed Rack::Request, use native Falcon `request.path` |
+| Response format | `lib/observability/metrics_server.rb` | Use `Protocol::HTTP::Response[]` for async-http compatibility |
+
+Run `ruby smoke_test.rb` to verify fixes.
+
+### 4. Deployment Status (2026-03-13)
+| Component | URL | Status |
+|-----------|-----|--------|
+| Metrics Server | `https://ciel.tailcd23a1.ts.net/metrics/health` | ✅ Live |
+| Metrics Endpoint | `https://ciel.tailcd23a1.ts.net/metrics/metrics` | ✅ Raw Prometheus format |
+| Gateway | `https://ciel.tailcd23a1.ts.net/app/` | ✅ Live |
+
+**Path-based routing via Tailscale serve:**
+- `/app` → OpenClaw gateway (port 18789)
+- `/metrics` → Metrics server (port 9090)
+
+**Note:** Metrics currently show test data (from `test_metrics_server.rb`). Real harness metrics require Telegram adapter to be operational.
 
 ---
 
@@ -221,8 +244,10 @@ From `PHASE0-REQUIREMENTS.md`:
 | F1: Telegram bot responds | 🚧 NOT STARTED | Manual test |
 | F2: 100+ concurrent connections | ✅ Core supports this | Load test when Telegram done |
 | F3: Structured JSON logs | ✅ Complete | See "Test Logger" above |
-| F4: Metrics endpoint | ✅ Complete | `curl localhost:9090/metrics` |
+| F4: Metrics endpoint | ✅ Complete | `curl https://ciel.tailcd23a1.ts.net/metrics/metrics` |
 | F7: Secrets encrypted | ✅ Complete | `bin/harness secrets_list` |
+
+**Security Note:** Metrics server binds to `127.0.0.1` (localhost) by default. External access is via Tailscale serve only. To expose metrics to Prometheus/Grafana, configure Tailscale serve or use Tailscale funnel.
 
 ---
 

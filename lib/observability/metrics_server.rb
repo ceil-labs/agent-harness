@@ -2,21 +2,21 @@
 
 require "async"
 require "async/http/endpoint"
-require "falcon/server"
-require "falcon/service/supervised"
+require "async/http/server"
+require "protocol/http"
 
 module AgentHarness
   # HTTP server for exposing Prometheus metrics endpoint
   # Runs on port 9090 by default
   class MetricsServer
     DEFAULT_PORT = 9090
-    DEFAULT_HOST = "0.0.0.0"
+    DEFAULT_HOST = "127.0.0.1"  # Secure default: localhost only
 
     attr_reader :port, :host, :metrics
 
     # @param metrics [Metrics] Metrics collector instance
     # @param port [Integer] Port to listen on
-    # @param host [String] Host to bind to
+    # @param host [String] Host to bind to (default: 127.0.0.1 for security)
     def initialize(metrics:, port: DEFAULT_PORT, host: DEFAULT_HOST)
       @metrics = metrics
       @port = port
@@ -29,22 +29,20 @@ module AgentHarness
     # Blocks until stop() is called
     # @return [void]
     def start
-      Async do
-        @endpoint = Async::HTTP::Endpoint.parse("http://#{@host}:#{@port}")
+      @endpoint = Async::HTTP::Endpoint.parse("http://#{@host}:#{@port}")
 
-        app = build_app
-        @server = Falcon::Server.new(app, @endpoint)
+      app = build_app
+      @server = Async::HTTP::Server.new(app, @endpoint)
 
-        # Log startup if logger is available
-        puts({
-          timestamp: Time.now.utc.iso8601,
-          level: "info",
-          event: "metrics_server.started",
-          context: { host: @host, port: @port }
-        }.to_json)
+      # Log startup
+      puts({
+        timestamp: Time.now.utc.iso8601,
+        level: "info",
+        event: "metrics_server.started",
+        context: { host: @host, port: @port }
+      }.to_json)
 
-        @server.run
-      end
+      @server.run
     end
 
     # Stop the metrics server
@@ -55,31 +53,34 @@ module AgentHarness
 
     private
 
+    # Build a simple app handler
+    # Async::HTTP passes a Request object
     def build_app
-      ->(env) {
-        request = Rack::Request.new(env)
+      lambda do |request|
+        # request.path returns the path component (e.g., "/metrics")
+        path = request.path.to_s
 
-        case request.path_info
+        case path
         when "/metrics"
           handle_metrics
         when "/health"
           handle_health
         else
-          [404, { "content-type" => "text/plain" }, ["Not Found"]]
+          Protocol::HTTP::Response[404, {"content-type" => "text/plain"}, ["Not Found"]]
         end
-      }
+      end
     end
 
     def handle_metrics
       body = @metrics.exposition_format
 
-      [200, { "content-type" => "text/plain; version=0.0.4" }, [body]]
+      Protocol::HTTP::Response[200, {"content-type" => "text/plain; version=0.0.4"}, [body]]
     rescue => e
-      [500, { "content-type" => "text/plain" }, ["Error generating metrics: #{e.message}"]]
+      Protocol::HTTP::Response[500, {"content-type" => "text/plain"}, ["Error generating metrics: #{e.message}"]]
     end
 
     def handle_health
-      [200, { "content-type" => "application/json" }, [{ status: "healthy" }.to_json]]
+      Protocol::HTTP::Response[200, {"content-type" => "application/json"}, ['{"status":"healthy"}']]
     end
   end
 end

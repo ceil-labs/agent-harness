@@ -174,7 +174,7 @@ module AgentHarness
 
         # Record latency
         duration = Time.now - start_time
-        @metrics.observe(:llm_request_duration_seconds, duration, labels: { agent_id: @agent_id })
+        @metrics.observe(:llm_request_duration_seconds, duration, labels: { agent_id: @agent_id, provider: @llm.name })
       else
         # LLM returned nil (error occurred)
         error_message = "Sorry, I couldn't generate a response. Please try again."
