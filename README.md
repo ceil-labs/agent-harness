@@ -277,12 +277,33 @@ bin/harness security_audit    # Run bundler-audit
 
 ## LLM Providers
 
-| Provider | Status | Model | Format |
-|----------|--------|-------|--------|
-| Kimi Coding | ✅ Ready | k2p5 | Anthropic-compatible |
-| MiniMax | ⬜ Planned | MiniMax-M2.5 | - |
-| OpenAI | ⬜ Planned | gpt-4o-mini | OpenAI |
-| Grok (X) | ⬜ Planned | grok-2 | OpenAI |
+| Provider | Status | Models | Format | Secret Key |
+|----------|--------|--------|--------|------------|
+| Kimi Coding | ✅ Ready | k2p5 | Anthropic-compatible | `kimi_coding.api_key` |
+| OpenCode-go | ✅ Ready | glm-5, kimi-k2.5, minimax-m2.5 | OpenAI-compatible | `opencode_go.api_key` |
+| MiniMax | ⬜ Planned | - | - | - |
+| OpenAI | ⬜ Planned | gpt-4o-mini | OpenAI | - |
+| Grok (X) | ⬜ Planned | grok-2 | OpenAI | - |
+
+### Switching Providers
+
+Set the `MODEL_PROVIDER` environment variable in `.env`:
+
+```bash
+# Use OpenCode-go (supports GLM, Kimi, MiniMax)
+MODEL_PROVIDER=opencode_go
+MODEL=kimi-k2.5
+
+# Or use Kimi direct
+MODEL_PROVIDER=kimi_coding
+MODEL=k2p5
+```
+
+**Note:** Each provider requires its own API key in secrets:
+- For `kimi_coding`: `bin/harness secrets_edit` → add `kimi_coding.api_key`
+- For `opencode_go`: `bin/harness secrets_edit` → add `opencode_go.api_key`
+
+Get your OpenCode-go API key at: https://opencode.ai/docs/providers/#opencode-go
 
 ## Development
 
