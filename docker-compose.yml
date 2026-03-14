@@ -1,7 +1,6 @@
-version: "3.8"
-
 services:
   harness:
+    image: agent-harness:latest
     build: .
     container_name: agent-harness
     restart: unless-stopped
@@ -13,10 +12,12 @@ services:
       - harness-data:/app/data
       - harness-logs:/app/logs
     
-    # Environment
+    # Environment (non-secret config)
+    # Secrets are mounted from config/secrets.yml.enc
+    env_file:
+      - .env
     environment:
       - RUBY_ENV=production
-      - AGENT_ID=ceil-phase0
     
     # Port for metrics
     ports:

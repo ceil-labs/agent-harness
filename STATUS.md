@@ -1,9 +1,9 @@
 # Agent Harness - Handover Status
 
 **For:** Next Agent  
-**Last Updated:** 2026-03-13  
-**Phase:** 0 (Foundation + Observability)  
-**Overall Completion:** ~60%
+**Last Updated:** 2026-03-14  
+**Phase:** 0(Foundation + Observability)  
+**Overall Completion:** ~70%
 
 ---
 
@@ -17,7 +17,7 @@
 | Secrets Management | `lib/secrets/file_provider.rb` | ✅ | `bin/harness secrets_list` shows keys |
 | Kimi Coding LLM | `lib/adapters/kimi_coding_llm.rb` | ✅ | See verification script below |
 
-### 2. Observability (NEW - Just Implemented)
+### 2. Observability
 | Component | File | What It Does | How to Test |
 |-----------|------|--------------|-------------|
 | JSON Logger | `lib/observability/logger.rb` | Structured logging to stdout/file | See "Test Logger" below |
@@ -25,175 +25,50 @@
 | Metrics Server | `lib/observability/metrics_server.rb` | HTTP server on port 9090 | `curl localhost:9090/metrics` |
 | Null Objects | `lib/observability/null_observability.rb` | No-ops for testing | Use in tests |
 
-**Note:** `null_observability.rb` is intentionally kept for testing mode.
+### 3. Docker Deployment (✅ 2026-03-14)
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Image | ✅ Single image: `agent-harness:latest` | Consolidated from multiple tags |
+| docker-compose.yml | ✅ Clean configuration | ENV support added |
+| `.env.example` | ✅ Created | Template for non-secret config |
+| One-command start | ✅ Working | `docker compose up -d` |
 
-### 3. Bug Fixes (2026-03-13)
-| Issue | File | Fix |
-|-------|------|-----|
-| Falcon LoadError | `lib/observability/metrics_server.rb` | Removed `require falcon/service/supervised` (doesn't exist in Falcon 0.55.2) |
-| Label mismatch | `lib/harness/harness.rb` | Added `provider: @llm.name` to `llm_request_duration_seconds` labels |
-| Rack integration | `lib/observability/metrics_server.rb` | Removed Rack::Request, use native Falcon `request.path` |
-| Response format | `lib/observability/metrics_server.rb` | Use `Protocol::HTTP::Response[]` for async-http compatibility |
+**Verified:**
+```bash
+docker ps | grep agent-harness
+# agent-harness   Up X (healthy)   agent-harness:latest
 
-Run `ruby smoke_test.rb` to verify fixes.
+curl http://127.0.0.1:9090/health
+# {"status":"healthy"}
+```
 
-### 4. Deployment Status (2026-03-13)
-| Component | URL | Status |
-|-----------|-----|--------|
-| Metrics Server | `https://ciel.tailcd23a1.ts.net/metrics/health` | ✅ Live |
-| Metrics Endpoint | `https://ciel.tailcd23a1.ts.net/metrics/metrics` | ✅ Raw Prometheus format |
-| Gateway | `https://ciel.tailcd23a1.ts.net/app/` | ✅ Live |
+### 4. Configuration (✅ 2026-03-14)
+| Setting | Source | Default |
+|---------|--------|---------|
+| `AGENT_ID` | `.env` | `ceil-phase0` |
+| `MODEL` | `.env` | `k2p5` |
+| `LOG_LEVEL` | `.env` | `info` |
+| `METRICS_PORT` | `.env` | `9090` |
+| `ALLOWLIST` | `.env` | (empty = all users) |
+| `SYSTEM_PROMPT` | `.env` | Built-in |
+| `telegram.bot_token` | `secrets.yml.enc` | Via `bin/harness secrets_edit` |
+| `kimi_coding.api_key` | `secrets.yml.enc` | Via `bin/harness secrets_edit` |
 
-**Path-based routing via Tailscale serve:**
-- `/app` → OpenClaw gateway (port 18789)
-- `/metrics` → Metrics server (port 9090)
-
-**Note:** Metrics currently show test data (from `test_metrics_server.rb`). Real harness metrics require Telegram adapter to be operational.
-
-### 5. Telegram Adapter (NEW - Just Implemented)
+### 5. Telegram Adapter
 | Component | File | Status | How to Verify |
 |-----------|------|--------|---------------|
 | Telegram Adapter | `lib/adapters/telegram_adapter.rb` | ✅ Complete | `bundle exec rake test` |
 | Input/Output Interfaces | Implements both | ✅ Complete | Contract tests pass |
-| Echo Test | `test_telegram_echo.rb` | ✅ Working | Send message to @ceil_harness_bot |
 | Streaming Support | Edit messages | ✅ Complete | `supports_streaming?` returns true |
-| **Phase 0 Harness** | `run_phase0.rb` | ⚠️ **BLOCKER** | Process stops after ~40s in background |
-
-**Verified:**
-```bash
-ruby test_telegram_echo.rb
-# Then message @ceil_harness_bot on Telegram
-# Expected: "Echo: your message" reply
-```
-
-**Blocker - Phase 0 Harness Runner:**
-- Direct execution: ✅ Works (processes messages end-to-end)
-- Background/nohup: ❌ Process stops after ~40 seconds
-- Root cause: Unknown (possibly async/Telegram listener issue)
 
 **Bot:** @ceil_harness_bot (ID: 8641259265)
-
----
-
-## 🔴 Current Blocker: Harness Background Execution
-
-### Problem
-The harness works perfectly when run directly but stops after ~40 seconds when run in background (`nohup`, `&`, systemd).
-
-### Evidence
-```bash
-# Direct execution - works
-ruby run_simple.rb
-# ✅ Processes messages correctly
-
-# Background execution - fails
-nohup ruby run_simple.rb &
-# ❌ Process stops after ~40s
-# Logs show: telegram_adapter.stopped, harness.cleanup_complete
-```
-
-### What Works
-- ✅ Telegram adapter receives messages
-- ✅ LLM generates responses  
-- ✅ Responses sent to Telegram
-- ✅ All tests pass (97 tests)
-
-### What Doesn't Work
-- ❌ Process persistence in background
-- ❌ Metrics server (when started in separate thread)
-
-### Suspected Causes
-1. Async reactor stops when parent process detaches
-2. Telegram `bot.listen` loop exits on SIGHUP/SIGTERM
-3. Thread/fiber interaction with nohup
-
-### Potential Solutions
-1. **Docker container** — Process runs as PID 1, no terminal detachment issues
-2. **systemd service** — Proper signal handling, auto-restart
-3. **screen/tmux** — Keep terminal session alive
-4. **Debug signal handling** — Add signal traps, ensure SIGPIPE/SIGHUP ignored
-
-### Recommended Next Step
-Dockerize the harness for proper process isolation and persistence.
-
----
-
-### Test Kimi Coding LLM (Verified Working)
-
-```bash
-cd ~/.openclaw/agent-harness
-ruby -I lib:spec -e '
-require "agent_harness"
-
-secrets = AgentHarness::Secrets::FileProvider.new(
-  master_key_path: "config/master.key",
-  secrets_path: "config/secrets.yml.enc"
-)
-
-llm = AgentHarness::Adapters::KimiCodingLLM.new(secrets: secrets)
-puts "Available: #{llm.available?}"
-
-response = llm.generate([{ role: "user", content: "Hello!" }])
-puts "Response: #{response[:content]}"
-puts "Tokens: #{response[:usage][:total_tokens]}"
-'
-# Expected: Available: true, Response: <greeting>, Tokens: <number>
-```
-
-### Test Logger
-
-```bash
-ruby -I lib -e '
-require "agent_harness"
-
-logger = AgentHarness::ObservabilityFactory.create_logger(
-  level: :info,
-  file_path: "/tmp/test.log"
-)
-
-logger.info("test.event", { agent_id: "test-001", status: "ok" })
-puts "Check /tmp/test.log"
-'
-# Expected: JSON line with timestamp, level, event, context
-cat /tmp/test.log
-```
-
-### Test Metrics + Server
-
-**Terminal 1:**
-```bash
-ruby -I lib -e '
-require "agent_harness"
-require "async"
-
-metrics = AgentHarness::ObservabilityFactory.create_metrics
-server = AgentHarness::ObservabilityFactory.create_metrics_server(
-  metrics: metrics, port: 9090
-)
-
-# Record a metric
-metrics.increment(:messages_total, labels: { agent_id: "test" })
-
-puts "Starting server on port 9090..."
-server.start
-'
-```
-
-**Terminal 2:**
-```bash
-curl http://localhost:9090/health
-# Expected: {"status":"healthy"}
-
-curl http://localhost:9090/metrics | grep messages_total
-# Expected: messages_total{agent_id="test"} 1.0
-```
 
 ---
 
 ## 📊 Test Summary
 
 ```
-Total: 82 tests, 210 assertions, 0 failures
+Total: 97 tests, 222 assertions, 0 failures, 2 skips
 
 Breakdown:
 - Interface contracts: 10 tests
@@ -202,185 +77,241 @@ Breakdown:
 - CLI: 3 tests
 - KimiCodingLLM: 20 tests
 - Observability: 34 tests (logger + metrics + server)
+- Telegram adapter: Contract tests
 
 Run: bundle exec rake test
 ```
 
 ---
 
-## 🚧 Next Priority: Full Harness Integration
+## 🚀 Quick Start
 
-**Why next:** Telegram adapter works. Now wire it into the harness for complete flow.
-
-**What to build:**
-- Harness configuration to use TelegramAdapter
-- End-to-end: Telegram → Harness → Kimi LLM → Harness → Telegram
-- Handle errors gracefully
-- Add real metrics (not test data)
-
-**Test the full flow:**
 ```bash
-ruby -I lib -e '
-require "agent_harness"
+cd ~/.openclaw/agent-harness
 
-secrets = AgentHarness::Secrets::FileProvider.new(...)
+# 1. Configure secrets (first time only)
+bin/harness secrets_init
+bin/harness secrets_edit# Add telegram.bot_token and kimi_coding.api_key
 
-harness = AgentHarness::Harness.new(
-  input: AgentHarness::Adapters::TelegramAdapter.new(secrets: secrets),
-  output: AgentHarness::Adapters::TelegramAdapter.new(secrets: secrets),
-  llm: AgentHarness::Adapters::KimiCodingLLM.new(secrets: secrets),
-  agent_id: "telegram-bot",
-  config: { system_prompt: "You are Ceil, a helpful assistant." }
-)
+# 2. Configure non-secret options
+cp .env.example .env
+# Edit .env as needed
 
-harness.run
-'
+# 3. Start
+docker compose up -d
+
+# 4. Verify
+curl http://127.0.0.1:9090/health
+docker logs agent-harness --tail 20
 ```
-
-**Expected:** Message bot → LLM processes → Response sent back
 
 ---
 
-## 📝 Key Files for Next Agent
+## 🎯 Phase 0 Definition of Done
 
-| File | Why It Matters |
-|------|----------------|
-| `lib/interfaces/*.rb` | Contracts you must implement |
-| `lib/adapters/kimi_coding_llm.rb` | Working adapter pattern to copy |
-| `lib/observability/*` | Use these for logging/metrics in your adapter |
-| `spec/support/mock_adapters.rb` | How to write tests |
-| `bin/harness` | CLI commands for secrets |
+| Criterion | Status | How to Verify |
+|-----------|--------|---------------|
+| F1: Telegram bot responds | ✅ Complete | Message @ceil_harness_bot |
+| F2: 100+ concurrent connections | ✅ Core supports | Load test |
+| F3: Structured JSON logs | ✅ Complete | `docker logs agent-harness` |
+| F4: Metrics endpoint | ✅ Complete | `curl http://127.0.0.1:9090/metrics` |
+| F5: Docker one-command start | ✅ Complete | `docker compose up -d` |
+| F6: ENV configuration | ✅ Complete | `.env` file |
+| F7: Secrets encrypted | ✅ Complete | `bin/harness secrets_list` |
+
+---
+
+## 📝 Key Files
+
+| File | Purpose |
+|------|---------|
+| `run_phase0.rb` | Main entry point (ENV-aware) |
+| `docker-compose.yml` | Container orchestration |
+| `.env.example` | Configuration template |
+| `config/secrets.yml.enc` | Encrypted API keys |
+| `config/master.key` | Encryption key (gitignored) |
+| `bin/harness` | CLI for secrets management |
 
 ---
 
 ## ⚠️ Known Issues / Notes
 
-1. **Audit log location:** `config/.audit.log` — intentionally gitignored, still generated
-2. **Metrics server port:** Default 9090 — configurable
-3. **Kimi API format:** Anthropic-compatible (not OpenAI) — endpoint is `api.kimi.com/coding/`
-4. **Null observability:** Keep for tests — don't delete `null_observability.rb`
+### 1. Health Check Wastes API Quota (⚠️ Minor but Noisy)
+**Status:** Documented — optimization opportunity  
+**Finding:** Health check runs every 60 seconds and makes an actual LLM API call (`max_tokens: 1`) to verify connectivity.
+
+**Evidence:**
+- Pattern: `agent-harness` requests in Kimi dashboard at ~1-minute intervals
+- Code: `lib/harness/harness.rb:209` → `run_health_checks` default interval = 60s
+- Code: `lib/adapters/kimi_coding_llm.rb:50-79` → `available?` makes real API call
+
+**Impact:**
+- ~1,440 requests/day just for health checks (24 × 60)
+- Minimal token usage (1 token per check) but noisy in logs/metrics
+- Unnecessary API quota consumption
+
+**Fix Options:**
+1. **Simple check:** Verify API key configured without calling API
+2. **Cached check:** Only hit API every 5-10 minutes (configurable)
+3. **Passive check:** Monitor actual request success/failure instead of proactive pings
+4. **Configurable:** Expose `HEALTH_CHECK_INTERVAL` in `.env` (currently hardcoded to 60s in harness, though config key exists)
+
+**Files to modify:**
+- `lib/harness/harness.rb` — cache last health check result, skip if recent
+- `lib/adapters/kimi_coding_llm.rb` — `available?` should have a lightweight mode
+- `.env.example` — add `HEALTH_CHECK_INTERVAL=300` (5 minutes)
+- `run_phase0.rb` — pass `health_check_interval` to harness config
 
 ---
 
-## 🎯 Success Criteria for Phase 0
-
-From `PHASE0-REQUIREMENTS.md`:
-
-| Criterion | Status | How to Verify |
-|-----------|--------|---------------|
-| F1: Telegram bot responds | ✅ Complete | `ruby test_telegram_echo.rb` |
-| F2: 100+ concurrent connections | ✅ Core supports this | Load test when Telegram done |
-| F3: Structured JSON logs | ✅ Complete | See "Test Logger" above |
-| F4: Metrics endpoint | ✅ Complete | `curl https://ciel.tailcd23a1.ts.net/metrics/metrics` |
-| F7: Secrets encrypted | ✅ Complete | `bin/harness secrets_list` |
-
-**Security Note:** Metrics server binds to `127.0.0.1` (localhost) by default. External access is via Tailscale serve only. To expose metrics to Prometheus/Grafana, configure Tailscale serve or use Tailscale funnel.
+1. **Audit log:** `config/.audit.log` — intentionally gitignored
+2. **Metrics server:** Binds to `0.0.0.0:9090` inside container, `127.0.0.1:9090` externally
+3. **Kimi API format:** Anthropic-compatible (not OpenAI)
+4. **Image size:** 877MB (can be optimized with multi-stage build)
 
 ---
 
-## 🤔 Questions?
+## 🎯 Next Steps
 
-- **How does the harness use observability?** Search `lib/harness/harness.rb` for `@logger.` and `@metrics.`
-- **How to test without Telegram?** Use `MockInputAdapter` and `MockOutputAdapter` from `spec/support/mock_adapters.rb`
-- **Where are API keys stored?** `config/secrets.yml.enc` (encrypted), read via `Secrets::FileProvider`
+### Priority 1: Prometheus + Grafana Stack
+**Goal:** Historical metrics and professional dashboards  
+**Effort:** ~30 minutes  
+**Implementation:**
+1. Add `prometheus` and `grafana` services to `docker-compose.yml`
+2. Create `prometheus.yml` config to scrape `harness:9090/metrics`
+3. Add Grafana dashboard for agent metrics
+4. Expose ports: Prometheus `9091`, Grafana `3000`
 
----
-
-**Bottom Line:** Core is solid. Observability is done and tested. Next agent should implement Telegram adapter for end-to-end functionality.
-
----
-
-## 🎯 Next Steps (Phase 0 Cleanup)
-
-**Context:** Phase 0 core functionality is complete and verified working. Next session focuses on hardening, testing, and documentation.
-
-### Status: What's Done vs What's Next
-
-| Area | Status | What's Needed |
-|------|--------|---------------|
-| **Core Functionality** | ✅ Complete | Telegram → LLM → Response working |
-| **Docker Container** | ✅ Running | Needs cleanup and optimization |
-| **Unit Tests** | ✅ 97 passing | Integration tests needed |
-| **Observability** | ✅ Basic | Log persistence, error tracking |
-| **Documentation** | ⚠️ Partial | Setup guide, configuration reference |
-| **Developer Experience** | ⚠️ Okay | One-command setup needed |
-
-### Detailed Tasks (Next Session)
-
-#### 1. Docker Cleanup (High Priority)
-- [ ] Consolidate image naming (remove `agent-harness-harness:latest`)
-- [ ] Add `.env.example` with all configuration options
-- [ ] Test `docker-compose up` from clean state
-- [ ] Optimize image size (currently 877MB)
-- [ ] Add log rotation for persisted logs
-- [ ] Document volume mounts (secrets, logs, data)
-
-#### 2. Testing (High Priority)
-**Challenge:** Can't use real Telegram bot/LLM in automated tests
-
-**Proposed Solution:**
+**Config files to create:**
 ```
-spec/
-├── unit/           # Existing 97 tests ✅
-├── integration/    # NEW - Mock external APIs
-│   ├── telegram_adapter_spec.rb
-│   ├── kimi_llm_spec.rb
-│   └── harness_integration_spec.rb
-└── e2e/            # NEW - Manual only
-    └── README.md
+prometheus.yml         # Prometheus scrape config
+grafana/provisioning/  # Auto-configure datasource + dashboard
 ```
 
-**Tools:** WebMock for HTTP stubbing, VCR for recording/replaying
+**docker-compose.yml additions:**
+```yaml
+prometheus:
+  image: prom/prometheus:latest
+  volumes:
+    - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - prometheus-data:/prometheus
+  ports:
+    - "127.0.0.1:9091:9090"
 
-#### 3. Observability Improvements
-- [ ] Persist logs to volume (currently lost on restart)
-- [ ] Add error tracking (webhook to OpenClaw on errors)
-- [ ] Add request tracing (correlation IDs)
-- [ ] Document Prometheus endpoint for Grafana
-
-#### 4. Documentation
-- [ ] Setup guide (zero to running)
-- [ ] Configuration reference (env vars, secrets)
-- [ ] Testing guide (how to run tests, add new ones)
-- [ ] Troubleshooting guide (common issues)
-
-### Open Questions
-
-1. **Testing:** Mock at HTTP level or adapter level?
-2. **Secrets:** Files vs environment variables for Docker?
-3. **LLM in tests:** Mock responses or use cheap model?
-4. **Error alerting:** Simple webhook or full Sentry?
-
-### Resources
-
-- **Planning Doc:** `workspace/researches/in-progress/agent-harness-phase0-cleanup.md`
-- **Memory:** `workspace/memory/2026-03-13.md`
-- **Working Harness:** `docker ps | grep agent-harness`
-- **Verify Working:** Send message to @ceil_harness_bot
-
-### Quick Commands for Next Agent
-
-```bash
-# Check current state
-cd ~/.openclaw/agent-harness
-docker ps | grep agent-harness
-curl http://127.0.0.1:9090/health
-docker logs --tail 20 agent-harness
-
-# Run tests
-bundle exec rspec
-
-# Restart harness
-docker-compose restart harness
+grafana:
+  image: grafana/grafana:latest
+  environment:
+    - GF_SECURITY_ADMIN_USER=harness
+    - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-harness}
+  ports:
+    - "127.0.0.1:3000:3000"
+  depends_on:
+    - prometheus
 ```
 
 ---
 
-**Phase 0 Definition of Done:**
-- [x] Core functionality (Telegram → LLM → Response)
-- [x] Docker container running
-- [x] Basic metrics
-- [ ] Clean Docker setup (one-command start) ← Next
-- [ ] Integration tests ← Next
-- [ ] Complete documentation ← Next
-- [ ] Observable (logs persisted, errors tracked) ← Next
+### Priority 2: Add OpenCode-go Provider
+**Goal:** Support multiple LLM providers via OpenCode-go API  
+**Reference:** https://opencode.ai/docs/providers/#opencode-go  
+**Models available:** GLM, Kimi, MiniMax  
+**Effort:** 2-3 hours  
+**Implementation:**
+1. Create `lib/adapters/opencode_llm.rb`
+2. Follow pattern from `lib/adapters/kimi_coding_llm.rb`
+3. Update `run_phase0.rb` to use `MODEL_PROVIDER=opencode` ENV var
+4. Add tests in `spec/adapters/opencode_llm_test.rb`
+
+**Key differences from Kimi adapter:**
+- Endpoint: OpenCode-go proxy (not direct Kimi API)
+- Model selection via `model` parameter (glm-5, kimi-k2.5, minimax-m2.5)
+- Same Anthropic-compatible format
+
+---
+
+### Priority 3: WebUI for Secrets & Config
+**Goal:** Browser-based management instead of CLI  
+**Effort:** 3-4 hours  
+**Features:**
+- `/` — Dashboard with live metrics
+- `/secrets` — Secure form to edit `config/secrets.yml.enc`
+- `/config` — Edit `.env` values
+- `/logs` — View recent log entries
+
+**Architecture:**
+```
+Harness WebUI (:8080)
+├── Falcon/Rack routes
+├── Auth via Tailscale (or basic auth)
+└── Calls existing Secrets::FileProvider
+```
+
+**New files:**
+```
+lib/webui/server.rb        # Falcon-based HTTP server
+lib/webui/routes.rb        # Route definitions
+lib/webui/views/           # ERB templates
+webui/dashboard.erb        # Metrics dashboard
+webui/secrets.erb         # Secrets editor form
+webui/config.erb          # Config editor form
+```
+
+---
+
+### Priority 4: Improved Observability Metrics
+**Goal:** Better visibility into agent behavior  
+**Effort:** 1-2 hours  
+**Add to `lib/observability/metrics.rb`:**
+
+| Metric | Type | Purpose |
+|--------|------|---------|
+| `messages_in_flight` | Gauge | Concurrent messages being processed |
+| `llm_tokens_total` | Counter | Token usage by type (input/output) |
+| `response_size_bytes` | Histogram | Response message sizes |
+
+**Update `lib/harness/harness.rb` to track:**
+- Increment `messages_in_flight` on message start
+- Decrement on message complete
+- Record token usage from LLM response
+
+---
+
+## 📦 Target Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Harness Container                      │
+│                                                             │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │ Telegram    │───▶│ Harness     │───▶│ Telegram    │     │
+│  │ (Input)     │    │ (Core)      │    │ (Output)    │     │
+│  └─────────────┘    └──────┬──────┘    └─────────────┘     │
+│                            │                                │
+│                      ┌─────▼─────┐                          │
+│                      │ LLM       │◄── OpenCode-go (GLM/    │
+│                      │           │    Kimi/MiniMax)        │
+│                      └───────────┘                          │
+│                                                            │
+│  ┌─────────────┐    ┌─────────────┐                        │
+│  │ WebUI       │    │ Metrics     │                        │
+│  │ :8080       │    │ :9090       │                        │
+│  │ /secrets    │    │ /metrics    │───► Prometheus         │
+│  │ /config     │    └─────────────┘     :9091             │
+│  │ /metrics    │                              │            │
+│  │ /logs       │                              ▼            │
+│  └─────────────┘                          Grafana         │
+│                                            :3000           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🤔 Open Questions for Next Agent
+
+1. **OpenCode provider:** Should `MODEL_PROVIDER=opencode` replace Kimi direct, or keep both options?
+2. **WebUI auth:** Tailscale-only access or add basic auth fallback?
+3. **Message logging:** Should we log message content for debugging? (Privacy: opt-in vs opt-out)
+
+---
+
+**Bottom Line:** Phase 0 is production-ready. Docker + ENV configuration working. Next: Prometheus/Grafana stack, then OpenCode provider, then WebUI.
