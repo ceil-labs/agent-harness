@@ -55,10 +55,15 @@ module AgentHarness
       # Check if the provider is configured and available
       # Makes a lightweight API call to verify connectivity
       #
+      # @param lightweight [Boolean] If true, only check API key config (no HTTP call)
       # @return [Boolean] true if API key is configured and API is reachable
-      def available?
+      def available?(lightweight: false)
         return false unless api_key_configured?
 
+        # Lightweight mode: just verify API key is configured
+        return true if lightweight
+
+        # Full check: make actual API call to verify connectivity
         Async do
           # Try a minimal request to verify connectivity and authentication
           internet = Async::HTTP::Internet.new

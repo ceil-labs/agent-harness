@@ -59,6 +59,13 @@ module AgentHarness
       @shutdown = Async::Condition.new
       @running = false
       @tasks = []
+
+      # Health check caching
+      @health_check_cache = {
+        result: false,
+        timestamp: nil
+      }
+      @health_check_ttl = @config[:health_check_ttl] || 300 # 5 minutes default
     end
 
     # Start the harness - blocks until stop() is called
@@ -273,16 +280,16 @@ module AgentHarness
 
     # Periodic health checks and metrics reporting
     def run_health_checks
-      interval = @config[:health_check_interval] || 60
+      interval = @config[:health_check_interval] || 300 # Default 5 minutes
+
+      # Run full health check at startup (one real API call)
+      perform_health_check(full_check: true)
 
       while @running
         sleep(interval)
 
-        @logger.debug("harness.health_check", {
-          agent_id: @agent_id,
-          input_status: @input.stopped? ? "stopped" : "running",
-          llm_available: @llm.available?
-        })
+        # Use lightweight check (no API call) for periodic health checks
+        perform_health_check(full_check: false)
 
         @metrics.gauge(:up, @running ? 1 : 0, labels: { agent_id: @agent_id })
       end
@@ -290,6 +297,40 @@ module AgentHarness
       @logger.error("harness.health_check_error", {
         agent_id: @agent_id,
         error: e.message
+      })
+    end
+
+    # Perform health check with optional caching
+    # @param full_check [Boolean] If true, always make API call; if false, use cache
+    def perform_health_check(full_check: false)
+      now = Time.now.to_i
+
+      # Check if we have a valid cached result
+      if !full_check && @health_check_cache[:timestamp]
+        cache_age = now - @health_check_cache[:timestamp]
+        if cache_age < @health_check_ttl
+          @logger.debug("harness.health_check_cached", {
+            agent_id: @agent_id,
+            input_status: @input.stopped? ? "stopped" : "running",
+            llm_available: @health_check_cache[:result],
+            cache_age_seconds: cache_age
+          })
+          return
+        end
+      end
+
+      # Perform the check (lightweight or full)
+      llm_available = full_check ? @llm.available? : @llm.available?(lightweight: true)
+
+      # Update cache
+      @health_check_cache[:result] = llm_available
+      @health_check_cache[:timestamp] = now
+
+      @logger.debug("harness.health_check", {
+        agent_id: @agent_id,
+        input_status: @input.stopped? ? "stopped" : "running",
+        llm_available: llm_available,
+        full_check: full_check
       })
     end
 
