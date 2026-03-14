@@ -83,6 +83,35 @@ harness.start
 - `GET /metrics` - Prometheus format
 - `GET /health` - Health check
 
+### Observability Stack (Prometheus + Grafana)
+
+The harness includes a full observability stack via Docker Compose:
+
+```bash
+# Start harness + Prometheus + Grafana
+docker compose up -d
+
+# Access Prometheus UI (raw metrics)
+open http://127.0.0.1:9091
+
+# Access Grafana dashboards (visualization)
+open http://127.0.0.1:3000
+# Login: harness / harness (change in .env)
+```
+
+**Grafana Dashboard includes:**
+- Message rate over time
+- Harness up/down status
+- Error rate with color thresholds
+- LLM request duration (p50/p95/p99)
+- Total messages & errors counters
+
+**Configuration:**
+- Prometheus scrapes harness metrics every 15s
+- All services on shared Docker network (`agent-harness-network`)
+- Ports bound to `127.0.0.1` for security
+- Persistent volumes for data retention
+
 #### Testing Mode (minimal overhead)
 
 ```ruby
