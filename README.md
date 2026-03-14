@@ -5,8 +5,8 @@ Multi-provider LLM agent harness with Ruby 4+, async runtime, and extensible obs
 ## Status
 
 **Phase:** 0 — Foundation (In Progress)  
-**Last Updated:** 2026-03-12  
-**Test Status:** 82 tests, 210 assertions, 0 failures
+**Last Updated:** 2026-03-14  
+**Test Status:** 120 tests, 278 assertions, 0 failures
 
 ## What's Working
 
@@ -19,29 +19,62 @@ Multi-provider LLM agent harness with Ruby 4+, async runtime, and extensible obs
 | Secrets Management | ✅ | AES-256-GCM encryption, audit logging |
 | Observability | ✅ | JSON logger, Prometheus metrics, metrics server |
 | Kimi Coding LLM | ✅ | Full implementation, Anthropic-compatible API |
-| Test Infrastructure | ✅ | Contract tests, mocks, 82 tests passing |
+| OpenCode-go LLM | ✅ | Multi-provider adapter (GLM, Kimi, MiniMax) |
+| Telegram Adapter | ✅ | Full implementation with streaming support |
+| Configuration | ✅ | ENV-based config with `.env` support |
+| Docker Deployment | ✅ | Single-command start with docker-compose |
+| Test Infrastructure | ✅ | Contract tests, mocks, 120 tests passing |
 
 ### 🚧 In Progress
 
 | Component | Status |
 |-----------|--------|
-| Telegram Adapter | Planned |
-| Configuration System | Not Started |
-| Docker | Not Started |
+| Integration Tests | Planned |
+| WebUI for Secrets | Planned |
+| Enhanced Metrics | Planned |
 
 ## Quick Start
 
+### Option 1: Docker (Recommended)
+
 ```bash
-# Install dependencies
+# Clone and enter directory
+cd agent-harness
+
+# Copy config template
+cp .env.example .env
+# Edit .env to set AGENT_ID, MODEL_PROVIDER, etc.
+
+# Initialize secrets
+bin/harness secrets_init
+bin/harness secrets_edit
+# Add: telegram.bot_token, kimi_coding.api_key (or opencode_go.api_key)
+
+# Start everything
+docker compose up -d
+
+# View logs
+docker compose logs -f harness
+```
+
+### Option 2: Local Development
+
+```bash
+# Install dependencies (Ruby 4.0+)
 bundle install
 
 # Initialize secrets
 bin/harness secrets_init
 bin/harness secrets_edit
-# Add: kimi_coding: { api_key: "your-key" }
+
+# Copy config
+cp .env.example .env
 
 # Run tests
 bundle exec rake test
+
+# Start harness
+bundle exec ruby run_phase0.rb
 ```
 
 ## Usage
@@ -239,7 +272,9 @@ lib/
 ├── harness/
 │   └── harness.rb                # Core async supervisor
 ├── adapters/
-│   └── kimi_coding_llm.rb        # Kimi Coding implementation
+│   ├── kimi_coding_llm.rb        # Kimi Coding implementation
+│   ├── opencode_go_llm.rb        # OpenCode-go implementation
+│   └── telegram_adapter.rb       # Telegram bot adapter
 ├── secrets/
 │   └── file_provider.rb          # Encrypted secrets
 └── observability/
@@ -254,6 +289,15 @@ spec/
 ├── adapters/                     # Adapter tests
 ├── observability/                # Logger + metrics tests
 └── secrets/                      # Security tests
+
+config/
+├── secrets.yml.enc               # Encrypted secrets
+└── master.key                    # Encryption key (gitignored)
+
+.observability/
+├── prometheus.yml                # Prometheus scrape config
+└── grafana/
+    └── provisioning/             # Auto-configured dashboards
 ```
 
 ## Security
@@ -281,9 +325,6 @@ bin/harness security_audit    # Run bundler-audit
 |----------|--------|--------|--------|------------|
 | Kimi Coding | ✅ Ready | k2p5 | Anthropic-compatible | `kimi_coding.api_key` |
 | OpenCode-go | ✅ Ready | glm-5, kimi-k2.5, minimax-m2.5 | OpenAI-compatible | `opencode_go.api_key` |
-| MiniMax | ⬜ Planned | - | - | - |
-| OpenAI | ⬜ Planned | gpt-4o-mini | OpenAI | - |
-| Grok (X) | ⬜ Planned | grok-2 | OpenAI | - |
 
 ### Switching Providers
 
