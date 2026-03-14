@@ -1,9 +1,9 @@
 # Agent Harness - Handover Status
 
-**For:** Next Agent  
-**Last Updated:** 2026-03-14  
-**Phase:** 0(Foundation + Observability)  
-**Overall Completion:** ~70%
+**For:** Next Agent
+**Last Updated:** 2026-03-14
+**Phase:** 0 (Foundation + Observability)
+**Overall Completion:** ~80%
 
 ---
 
@@ -65,10 +65,57 @@ curl http://127.0.0.1:9090/health
 
 ---
 
+## ✅ Recently Completed
+
+### Prometheus + Grafana Stack (✅ 2026-03-14)
+**Branch:** `feat/prometheus-grafana` → merged to `main`
+**Reviewed by:** GLM 5
+
+**What was built:**
+- Added Prometheus service (scrapes harness metrics every 15s)
+- Added Grafana with auto-provisioned dashboards
+- Dashboard includes: message rate, error rate, LLM duration (p50/p95/p99), up status, totals
+- All services on shared Docker network with persistent volumes
+- Security: ports bound to 127.0.0.1
+- Documented in README
+
+**Files changed:**
+- `docker-compose.yml` - Added prometheus and grafana services
+- `prometheus.yml` - Scrape configuration
+- `grafana/provisioning/` - Auto-configured datasource and dashboard
+- `grafana/dashboards/harness-dashboard.json` - Dashboard definition
+- `.env.example` - Added Grafana credentials
+- `README.md` - Added observability stack documentation
+
+**Access:**
+- Prometheus: http://127.0.0.1:9091
+- Grafana: http://127.0.0.1:3000 (harness/harness)
+
+---
+
+### Health Check Optimization (✅ 2026-03-14)
+**Branch:** `fix/health-check-cache` → merged to `main`
+**Reviewed by:** GLM 5
+
+**What was fixed:**
+- Health checks now run every 5 minutes (configurable via `HEALTH_CHECK_INTERVAL`) instead of 60 seconds
+- Added lightweight mode to `available?` - only checks API key config, no HTTP call
+- Periodic health checks use lightweight mode; full connectivity check only at startup
+- ~80% reduction in API calls (1,440/day → 289/day)
+
+**Files changed:**
+- `lib/harness/harness.rb` - Added health check caching with TTL
+- `lib/adapters/kimi_coding_llm.rb` - Added `lightweight:` parameter to `available?`
+- `.env.example` - Added `HEALTH_CHECK_INTERVAL=300`
+- `run_phase0.rb` - Wired up configuration
+- Tests - Added 4 new tests for caching behavior
+
+---
+
 ## 📊 Test Summary
 
 ```
-Total: 97 tests, 222 assertions, 0 failures, 2 skips
+Total: 101 tests, 230 assertions, 0 failures, 2 skips
 
 Breakdown:
 - Interface contracts: 10 tests
@@ -136,35 +183,14 @@ docker logs agent-harness --tail 20
 
 ## ⚠️ Known Issues / Notes
 
-### 1. Health Check Wastes API Quota (⚠️ Minor but Noisy)
-**Status:** Documented — optimization opportunity  
-**Finding:** Health check runs every 60 seconds and makes an actual LLM API call (`max_tokens: 1`) to verify connectivity.
-
-**Evidence:**
-- Pattern: `agent-harness` requests in Kimi dashboard at ~1-minute intervals
-- Code: `lib/harness/harness.rb:209` → `run_health_checks` default interval = 60s
-- Code: `lib/adapters/kimi_coding_llm.rb:50-79` → `available?` makes real API call
-
-**Impact:**
-- ~1,440 requests/day just for health checks (24 × 60)
-- Minimal token usage (1 token per check) but noisy in logs/metrics
-- Unnecessary API quota consumption
-
-**Fix Options:**
-1. **Simple check:** Verify API key configured without calling API
-2. **Cached check:** Only hit API every 5-10 minutes (configurable)
-3. **Passive check:** Monitor actual request success/failure instead of proactive pings
-4. **Configurable:** Expose `HEALTH_CHECK_INTERVAL` in `.env` (currently hardcoded to 60s in harness, though config key exists)
-
-**Files to modify:**
-- `lib/harness/harness.rb` — cache last health check result, skip if recent
-- `lib/adapters/kimi_coding_llm.rb` — `available?` should have a lightweight mode
-- `.env.example` — add `HEALTH_CHECK_INTERVAL=300` (5 minutes)
-- `run_phase0.rb` — pass `health_check_interval` to harness config
+1. **Audit log:** `config/.audit.log` - intentionally gitignored
+2. **Metrics server:** Binds to `0.0.0.0:9090` inside container, `127.0.0.1:9090` externally
+3. **Kimi API format:** Anthropic-compatible (not OpenAI)
+4. **Image size:** 877MB (can be optimized with multi-stage build)
 
 ---
 
-2. **Audit log:** `config/.audit.log` — intentionally gitignored
+2. **Audit log:** `config/.audit.log` - intentionally gitignored
 3. **Metrics server:** Binds to `0.0.0.0:9090` inside container, `127.0.0.1:9090` externally
 4. **Kimi API format:** Anthropic-compatible (not OpenAI)
 5. **Image size:** 877MB (can be optimized with multi-stage build)
@@ -173,49 +199,11 @@ docker logs agent-harness --tail 20
 
 ## 🎯 Next Steps
 
-### Priority 1: Prometheus + Grafana Stack
-**Goal:** Historical metrics and professional dashboards  
-**Effort:** ~30 minutes  
-**Implementation:**
-1. Add `prometheus` and `grafana` services to `docker-compose.yml`
-2. Create `prometheus.yml` config to scrape `harness:9090/metrics`
-3. Add Grafana dashboard for agent metrics
-4. Expose ports: Prometheus `9091`, Grafana `3000`
-
-**Config files to create:**
-```
-prometheus.yml         # Prometheus scrape config
-grafana/provisioning/  # Auto-configure datasource + dashboard
-```
-
-**docker-compose.yml additions:**
-```yaml
-prometheus:
-  image: prom/prometheus:latest
-  volumes:
-    - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    - prometheus-data:/prometheus
-  ports:
-    - "127.0.0.1:9091:9090"
-
-grafana:
-  image: grafana/grafana:latest
-  environment:
-    - GF_SECURITY_ADMIN_USER=harness
-    - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-harness}
-  ports:
-    - "127.0.0.1:3000:3000"
-  depends_on:
-    - prometheus
-```
-
----
-
-### Priority 2: Add OpenCode-go Provider
-**Goal:** Support multiple LLM providers via OpenCode-go API  
-**Reference:** https://opencode.ai/docs/providers/#opencode-go  
-**Models available:** GLM, Kimi, MiniMax  
-**Effort:** 2-3 hours  
+### Priority 1: Add OpenCode-go Provider
+**Goal:** Support multiple LLM providers via OpenCode-go API
+**Reference:** https://opencode.ai/docs/providers/#opencode-go
+**Models available:** GLM, Kimi, MiniMax
+**Effort:** 2-3 hours
 **Implementation:**
 1. Create `lib/adapters/opencode_llm.rb`
 2. Follow pattern from `lib/adapters/kimi_coding_llm.rb`
@@ -230,13 +218,13 @@ grafana:
 ---
 
 ### Priority 3: WebUI for Secrets & Config
-**Goal:** Browser-based management instead of CLI  
-**Effort:** 3-4 hours  
+**Goal:** Browser-based management instead of CLI
+**Effort:** 3-4 hours
 **Features:**
-- `/` — Dashboard with live metrics
-- `/secrets` — Secure form to edit `config/secrets.yml.enc`
-- `/config` — Edit `.env` values
-- `/logs` — View recent log entries
+- `/` - Dashboard with live metrics
+- `/secrets` - Secure form to edit `config/secrets.yml.enc`
+- `/config` - Edit `.env` values
+- `/logs` - View recent log entries
 
 **Architecture:**
 ```
@@ -259,8 +247,8 @@ webui/config.erb          # Config editor form
 ---
 
 ### Priority 4: Improved Observability Metrics
-**Goal:** Better visibility into agent behavior  
-**Effort:** 1-2 hours  
+**Goal:** Better visibility into agent behavior
+**Effort:** 1-2 hours
 **Add to `lib/observability/metrics.rb`:**
 
 | Metric | Type | Purpose |
@@ -311,10 +299,10 @@ webui/config.erb          # Config editor form
 **Current State:** 97 unit tests passing, 0 integration tests
 
 **Challenges:**
-- Telegram API — can't use real bot in automated tests
-- LLM API — expensive/slow to call real LLM in tests
-- Secrets — can't hardcode tokens in repo
-- Async code — testing async/await patterns
+- Telegram API - can't use real bot in automated tests
+- LLM API - expensive/slow to call real LLM in tests
+- Secrets - can't hardcode tokens in repo
+- Async code - testing async/await patterns
 
 **Recommended Approach: Hybrid**
 - **Unit tests:** Full mocking (fast, isolated)
