@@ -23,4 +23,11 @@ Rake::TestTask.new(:test_interfaces) do |t|
   t.verbose = true
 end
 
+Rake::TestTask.new(:"test:integration") do |t|
+  t.libs << "spec"
+  t.pattern = "spec/integration/**/*_test.rb"
+  t.verbose = true
+  t.warning = false
+end
+
 task default: :test

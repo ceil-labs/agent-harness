@@ -27,4 +27,6 @@ group :development, :test do
   gem "rake", "~> 13.0"
   gem "standard", "~> 1.0"  # Ruby linter/formatter
   gem "bundler-audit", "~> 0.9"  # Security audit for gems
+  gem "webmock", "~> 3.25"  # HTTP request stubbing for tests
+  gem "vcr", "~> 6.3"  # Record/replay HTTP interactions
 end
