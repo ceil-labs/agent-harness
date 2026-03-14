@@ -1,0 +1,28 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://opencode.ai/zen/go/v1/chat/completions
+    body:
+      encoding: UTF-8
+      string: '{"model":"glm-5","messages":[{"role":"user","content":"Hello"}],"stream":false}'
+    headers:
+      Accept:
+      - application/json
+      Authorization:
+      - Bearer <OPENCODE_GO_API_KEY>
+      Content-Type:
+      - application/json
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+    body:
+      encoding: UTF-8
+      string: '{"id":"chatcmpl-abc123","object":"chat.completion","created":1700000000,"model":"glm-5","choices":[{"index":0,"message":{"role":"assistant","content":"Hello! I''m OpenCode-go, ready to help you with coding tasks."},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":15,"total_tokens":25}}'
+    http_version: "1.1"
+  recorded_at: 2026-01-15 00:00:00.000000000 Z
+  recorded_with: VCR 6.4.0

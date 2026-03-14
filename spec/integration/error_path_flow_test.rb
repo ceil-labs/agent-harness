@@ -62,9 +62,9 @@ class ErrorPathFlowTest < AgentHarness::Test::IntegrationTest
     harness.send(:process_message, standardize_fixture(message))
     
     assert_equal 1, telegram.sent_messages.length
-    # When LLM returns nil content but response hash exists, harness sends nil
-    # (The harness only shows error message when LLM returns nil entirely)
-    assert_nil telegram.sent_messages.first[:text]
+    # When LLM returns nil content, harness sends error message
+    response_text = telegram.sent_messages.first[:text] || telegram.sent_messages.first[:caption]
+    assert_match(/couldn't generate|sorry|error/i, response_text)
   end
 
   # Kimi API authentication failure

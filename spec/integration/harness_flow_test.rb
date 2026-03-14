@@ -188,7 +188,7 @@ class HarnessFlowTest < AgentHarness::Test::IntegrationTest
     assert_equal "Got special chars!", @telegram_adapter.sent_messages.first[:text]
   end
 
-  # Test 8: Empty response from LLM - harness sends nil/empty content
+  # Test 8: Empty response from LLM - harness sends error message
   def test_handles_empty_llm_response
     stub_kimi_api(
       response_body: {
@@ -208,10 +208,10 @@ class HarnessFlowTest < AgentHarness::Test::IntegrationTest
 
     harness.send(:process_message, test_message("Hello"))
 
-    # When LLM returns empty content array, content is nil (empty string converted to nil)
+    # When LLM returns empty content array, harness sends error message
     assert_equal 1, @telegram_adapter.sent_messages.length
-    # Content is nil when no text blocks are present (empty string is falsy)
-    assert_nil @telegram_adapter.sent_messages.first[:text]
+    # Content is error message when LLM returns empty content
+    assert_match(/couldn't generate|sorry|error/i, @telegram_adapter.sent_messages.first[:text])
   end
 
   # Test 9: Both providers available check

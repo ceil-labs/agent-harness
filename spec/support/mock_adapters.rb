@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-# Mock adapters for testing
+# Minimal mock implementations for harness unit tests
 
-class MockInputAdapter
+class SimpleMockInputAdapter
   include AgentHarness::InputAdapter
 
   def initialize(messages: [])
@@ -29,7 +29,7 @@ class MockInputAdapter
   end
 end
 
-class MockOutputAdapter
+class SimpleMockOutputAdapter
   include AgentHarness::OutputAdapter
 
   attr_reader :messages
@@ -50,7 +50,9 @@ class MockOutputAdapter
   def stream(chunk, context:, finished: false); end
 end
 
-class MockLLMProvider
+# Minimal mock LLM for harness unit tests
+# Returns proper structure with finish_reason: "stop"
+class SimpleMockLLM
   include AgentHarness::LLMProvider
 
   attr_reader :call_count, :available_call_count, :available_lightweight_calls

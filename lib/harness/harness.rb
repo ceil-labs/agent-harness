@@ -158,8 +158,8 @@ module AgentHarness
       # Call LLM
       response = call_llm(messages)
 
-      # Send response (or error if LLM failed)
-      if response
+      # Send response (or error if LLM failed or returned empty content)
+      if response && response[:content]
         @output.send(response[:content], context: message)
 
         @logger.info("harness.response_sent", {
@@ -173,7 +173,7 @@ module AgentHarness
         duration = Time.now - start_time
         @metrics.observe(:llm_request_duration_seconds, duration, labels: { agent_id: @agent_id, provider: @llm.name })
       else
-        # LLM returned nil (error occurred)
+        # LLM returned nil response or nil content (error occurred)
         error_message = "Sorry, I couldn't generate a response. Please try again."
         @output.send(error_message, context: message)
 

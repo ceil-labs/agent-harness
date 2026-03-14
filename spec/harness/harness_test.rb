@@ -5,9 +5,9 @@ require_relative "../../lib/harness/harness"
 
 class HarnessTest < Minitest::Test
   def setup
-    @input = MockInputAdapter.new
-    @output = MockOutputAdapter.new
-    @llm = MockLLMProvider.new(responses: {
+    @input = SimpleMockInputAdapter.new
+    @output = SimpleMockOutputAdapter.new
+    @llm = SimpleMockLLM.new(responses: {
       "Hello" => { content: "Hi there!", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } }
     })
 
@@ -49,7 +49,7 @@ class HarnessTest < Minitest::Test
   end
 
   def test_handles_llm_errors
-    @llm = MockLLMProvider.new(raise_error: true)
+    @llm = SimpleMockLLM.new(raise_error: true)
     @harness = AgentHarness::Harness.new(
       agent_id: "test-agent-002",
       input: @input,

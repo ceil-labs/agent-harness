@@ -1,0 +1,28 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.kimi.com/coding/v1/messages
+    body:
+      encoding: UTF-8
+      string: '{"model":"k2p5","messages":[{"role":"user","content":"Hello"}],"stream":false}'
+    headers:
+      Accept:
+      - application/json
+      Authorization:
+      - Bearer <KIMI_API_KEY>
+      Content-Type:
+      - application/json
+  response:
+    status:
+      code: 401
+      message: Unauthorized
+    headers:
+      Content-Type:
+      - application/json
+    body:
+      encoding: UTF-8
+      string: '{"error":{"message":"Invalid API key","type":"authentication_error","code":"invalid_api_key"}}'
+    http_version: "1.1"
+  recorded_at: 2026-01-15 00:00:00.000000000 Z
+  recorded_with: VCR 6.4.0

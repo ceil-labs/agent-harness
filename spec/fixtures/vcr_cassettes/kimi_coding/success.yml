@@ -1,0 +1,30 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.kimi.com/coding/v1/messages
+    body:
+      encoding: UTF-8
+      string: '{"model":"k2p5","messages":[{"role":"user","content":"Hello"}],"stream":false}'
+    headers:
+      Accept:
+      - application/json
+      Authorization:
+      - Bearer <KIMI_API_KEY>
+      Content-Type:
+      - application/json
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Accept-Ranges:
+      - bytes
+      Content-Type:
+      - application/json
+    body:
+      encoding: UTF-8
+      string: '{"id":"msg_abc123","object":"message","created":1700000000,"content":[{"type":"text","text":"Hello! I''m Kimi, ready to help you with coding tasks."}],"stop_reason":"end_turn","usage":{"prompt_tokens":10,"completion_tokens":15,"total_tokens":25}}'
+    http_version: "1.1"
+  recorded_at: 2026-01-15 00:00:00.000000000 Z
+  recorded_with: VCR 6.4.0
