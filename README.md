@@ -297,6 +297,45 @@ bundle exec rake test_verbose
 bin/security-audit
 ```
 
+## Tailscale Access (Recommended)
+
+Expose the observability stack securely over your Tailnet using [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve):
+
+```bash
+# Expose Grafana on its own HTTPS port
+tailscale serve --bg --https=8443 http://127.0.0.1:3000
+
+# Verify configuration
+tailscale serve status
+```
+
+**Access via Magic DNS:**
+- Grafana: `https://<your-hostname>.tailcd23a1.ts.net:8443`
+- Prometheus: `https://<your-hostname>.tailcd23a1.ts.net:9091` (if exposed)
+- Harness metrics: `https://<your-hostname>.tailcd23a1.ts.net:9090/metrics`
+
+### Why Separate Ports?
+
+We recommend **separate HTTPS ports** instead of path-based routing (`--set-path`):
+
+| Approach | Command | Pros | Cons |
+|----------|---------|------|------|
+| **Separate ports** (Recommended) | `tailscale serve --https=8443 http://localhost:3000` | No app config needed, clean URLs, no path conflicts | Multiple ports to remember |
+| Path-based | `tailscale serve --set-path /grafana http://localhost:3000` | Single port | Requires app subpath config, path conflicts |
+
+**Example multi-service setup:**
+```bash
+# Main harness (local only - no tailscale needed)
+# Grafana
+tailscale serve --bg --https=8443 http://127.0.0.1:3000
+# Prometheus (optional)
+tailscale serve --bg --https=9091 http://127.0.0.1:9091
+```
+
+**Security:** All Tailscale serve endpoints are **tailnet-only** by default (not public internet). Perfect for agent networks and internal dashboards.
+
+---
+
 ## Documentation
 
 - [STATUS.md](./STATUS.md) — Current implementation status + testing guide
