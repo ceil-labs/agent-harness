@@ -1,0 +1,16 @@
+# Prometheus scrape configuration for agent-harness
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'agent-harness'
+    environment: 'production'
+
+scrape_configs:
+  - job_name: 'agent-harness'
+    static_configs:
+      - targets: ['harness:9090']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
