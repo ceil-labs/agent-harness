@@ -8,7 +8,7 @@ module AgentHarness
   module Adapters
     # OpenCode-go LLM adapter for agent-harness
     # Uses OpenCode-go API with OpenAI-compatible format
-    # Endpoint: https://api.opencode.ai/v1/chat/completions
+    # Endpoint: https://opencode.ai/zen/go/v1/chat/completions
     #
     # Supported models via OpenCode-go:
     #   - glm-5 (GLM model)
