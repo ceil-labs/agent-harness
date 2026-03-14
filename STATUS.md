@@ -164,10 +164,10 @@ docker logs agent-harness --tail 20
 
 ---
 
-1. **Audit log:** `config/.audit.log` — intentionally gitignored
-2. **Metrics server:** Binds to `0.0.0.0:9090` inside container, `127.0.0.1:9090` externally
-3. **Kimi API format:** Anthropic-compatible (not OpenAI)
-4. **Image size:** 877MB (can be optimized with multi-stage build)
+2. **Audit log:** `config/.audit.log` — intentionally gitignored
+3. **Metrics server:** Binds to `0.0.0.0:9090` inside container, `127.0.0.1:9090` externally
+4. **Kimi API format:** Anthropic-compatible (not OpenAI)
+5. **Image size:** 877MB (can be optimized with multi-stage build)
 
 ---
 
@@ -302,6 +302,37 @@ webui/config.erb          # Config editor form
 │  └─────────────┘                          Grafana         │
 │                                            :3000           │
 └─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🧪 Testing Strategy
+
+**Current State:** 97 unit tests passing, 0 integration tests
+
+**Challenges:**
+- Telegram API — can't use real bot in automated tests
+- LLM API — expensive/slow to call real LLM in tests
+- Secrets — can't hardcode tokens in repo
+- Async code — testing async/await patterns
+
+**Recommended Approach: Hybrid**
+- **Unit tests:** Full mocking (fast, isolated)
+- **Integration tests:** Mock external APIs, test internal wiring
+- **E2E tests:** Manual only (too expensive to automate)
+
+**Implementation Plan:**
+1. Create `spec/integration/` directory
+2. Add WebMock/VCR for HTTP stubbing
+3. Create test fixtures for Telegram messages
+4. Add integration test for full message flow: `telegram_message → harness → llm → response`
+
+**Files to create:**
+```
+spec/integration/harness_flow_test.rb    # Full flow test
+spec/fixtures/telegram_messages.yml      # Sample message payloads
+spec/support/mock_telegram.rb            # Telegram client mocks
+spec/support/mock_llm.rb                 # LLM provider mocks
 ```
 
 ---
