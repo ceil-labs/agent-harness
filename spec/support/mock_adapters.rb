@@ -53,12 +53,15 @@ end
 class MockLLMProvider
   include AgentHarness::LLMProvider
 
-  attr_reader :call_count
+  attr_reader :call_count, :available_call_count, :available_lightweight_calls
 
-  def initialize(responses: {}, raise_error: false)
+  def initialize(responses: {}, raise_error: false, available_return: true)
     @responses = responses
     @raise_error = raise_error
     @call_count = 0
+    @available_call_count = 0
+    @available_lightweight_calls = 0
+    @available_return = available_return
   end
 
   def generate(messages, tools: [], &block)
@@ -74,8 +77,12 @@ class MockLLMProvider
     }
   end
 
-  def available?
-    true
+  def available?(lightweight: false)
+    @available_call_count += 1
+    if lightweight
+      @available_lightweight_calls += 1
+    end
+    @available_return
   end
 
   def name

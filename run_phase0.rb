@@ -26,6 +26,7 @@ AGENT_ID = ENV.fetch("AGENT_ID", "ceil-phase0")
 MODEL = ENV.fetch("MODEL", "k2p5")
 LOG_LEVEL = ENV.fetch("LOG_LEVEL", "info").downcase.to_sym
 METRICS_PORT = ENV.fetch("METRICS_PORT", "9090").to_i
+HEALTH_CHECK_INTERVAL = ENV.fetch("HEALTH_CHECK_INTERVAL", "300").to_i
 ALLOWLIST = ENV.fetch("ALLOWLIST", "")
   .split(",")
   .map(&:strip)
@@ -105,7 +106,8 @@ harness = AgentHarness::Harness.new(
   output: output_adapter,
   llm: llm,
   config: {
-    system_prompt: SYSTEM_PROMPT
+    system_prompt: SYSTEM_PROMPT,
+    health_check_interval: HEALTH_CHECK_INTERVAL
   },
   logger: obs[:logger],
   metrics: obs[:metrics]
@@ -115,6 +117,7 @@ puts "🤖 Agent: #{AGENT_ID}"
 puts "💬 Platform: Telegram (@ceil_harness_bot)"
 puts "🧠 LLM: Kimi for Coding (#{MODEL})"
 puts "📊 Metrics: http://localhost:#{METRICS_PORT}/metrics"
+puts "💚 Health Check: every #{HEALTH_CHECK_INTERVAL}s (lightweight mode)"
 puts "🔐 Allowlist: #{ALLOWLIST.empty? ? 'all users' : ALLOWLIST.join(', ')}"
 puts ""
 puts "Send a message to @ceil_harness_bot on Telegram"
