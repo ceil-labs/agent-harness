@@ -4,9 +4,9 @@ Multi-provider LLM agent harness with Ruby 4+, async runtime, and extensible obs
 
 ## Status
 
-**Phase:** 0 — Foundation (In Progress)  
+**Phase:** 0 — Foundation (Complete)  
 **Last Updated:** 2026-03-14  
-**Test Status:** 120 tests, 278 assertions, 0 failures
+**Test Status:** 184 tests, 440 assertions, 0 failures
 
 ## What's Working
 
@@ -23,15 +23,7 @@ Multi-provider LLM agent harness with Ruby 4+, async runtime, and extensible obs
 | Telegram Adapter | ✅ | Full implementation with streaming support |
 | Configuration | ✅ | ENV-based config with `.env` support |
 | Docker Deployment | ✅ | Single-command start with docker-compose |
-| Test Infrastructure | ✅ | Contract tests, mocks, 120 tests passing |
-
-### 🚧 In Progress
-
-| Component | Status |
-|-----------|--------|
-| Integration Tests | Planned |
-| WebUI for Secrets | Planned |
-| Enhanced Metrics | Planned |
+| Integration Tests | ✅ | 64 tests covering full flows, error paths |
 
 ## Quick Start
 
@@ -349,14 +341,44 @@ Get your OpenCode-go API key at: https://opencode.ai/docs/providers/#opencode-go
 ## Development
 
 ```bash
-# Run all tests
+# Run all unit tests
 bundle exec rake test
+
+# Run integration tests (Telegram → Harness → LLM flows)
+bundle exec rake test:integration
+
+# Run all tests (unit + integration)
+bundle exec rake test:all
 
 # Run with verbose output
 bundle exec rake test_verbose
 
 # Security audit
 bin/security-audit
+```
+
+### Integration Tests
+
+The integration test suite validates the complete message flow:
+
+```
+Telegram Message → Harness → LLM Provider → Response → Telegram
+```
+
+**Coverage:**
+- **64 integration tests** — all passing
+- Both providers: Kimi Coding (k2p5) and OpenCode-go (GLM-5, Kimi, MiniMax)
+- Error paths: timeouts, auth failures, rate limits, invalid JSON
+- Mock infrastructure for isolated testing (no real API calls)
+
+**Key Files:**
+```
+spec/integration/
+├── harness_flow_test.rb        # Full flow tests
+├── kimi_coding_flow_test.rb    # Kimi provider tests
+├── opencode_go_flow_test.rb    # OpenCode-go provider tests
+├── telegram_to_llm_flow_test.rb # Telegram handling tests
+└── error_path_flow_test.rb     # Error scenario tests
 ```
 
 ## Tailscale Access (Recommended)

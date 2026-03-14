@@ -73,7 +73,47 @@ curl http://127.0.0.1:9090/health
 
 ## ✅ Recently Completed
 
-### OpenCode-go Provider (✅ 2026-03-14)
+### Integration Tests (✅ 2026-03-14)
+**Branch:** `main` (merged)
+**Reviewed by:** GLM-5 (9/10 score)
+
+**What was built:**
+- 64 integration tests covering full message flow: Telegram → Harness → LLM → Response
+- Both providers tested: Kimi Coding (k2p5) and OpenCode-go (GLM-5, Kimi, MiniMax)
+- Error path coverage: timeouts, auth failures (401), rate limits (429), server errors (500), invalid JSON
+- Mock infrastructure: `MockLLMProvider`, `MockTelegramAdapter`, `MockLLMFactory`
+- Test fixtures: `TelegramFixtures` with realistic Telegram API message formats
+- Rake task: `bundle exec rake test:integration`
+
+**Files added:**
+```
+spec/integration/
+├── test_helper.rb              # Integration test setup with WebMock
+├── harness_flow_test.rb        # 12 tests - Main flows
+├── kimi_coding_flow_test.rb    # 12 tests - Kimi provider
+├── opencode_go_flow_test.rb    # 16 tests - OpenCode-go provider
+├── telegram_to_llm_flow_test.rb # 7 tests - Telegram flows
+└── error_path_flow_test.rb     # 17 tests - Error handling
+
+spec/support/
+├── mock_telegram.rb            # Telegram client mocks
+└── mock_llm.rb                 # LLM provider mocks with factory
+
+spec/fixtures/
+└── telegram_messages.rb        # Test fixtures
+```
+
+**Test Results:**
+- All 64 tests passing
+- 162 assertions
+- 0 failures, 0 errors
+- Code review: 9/10 from GLM-5
+
+**Key decisions:**
+- WebMock for HTTP stubbing (no real API calls in tests)
+- `IntegrationTest` base class with common helpers
+- Provider-specific request format validation
+- Error scenarios test actual error messages from adapters
 **Branch:** `feat/opencode-go-provider` → ready to merge
 **Tested by:** Manual testing with GLM-5
 
@@ -155,19 +195,23 @@ curl http://127.0.0.1:9090/health
 ## 📊 Test Summary
 
 ```
-Total: 120 tests, 278 assertions, 0 failures, 2 skips
+Total: 184 tests, 440 assertions, 0 failures, 2 skips
 
 Breakdown:
 - Interface contracts: 10 tests
-- Harness core: 8 tests (removed 4 health check tests)
+- Harness core: 8 tests
 - Secrets: 10 tests
 - CLI: 3 tests
 - KimiCodingLLM: 20 tests
-- OpenCodeGoLLM: 22 tests (new)
-- Observability: 34 tests (logger + metrics + server)
+- OpenCodeGoLLM: 22 tests
+- Observability: 34 tests
 - Telegram adapter: Contract tests
+- Integration tests: 64 tests (NEW)
 
-Run: bundle exec rake test
+Run Tests:
+  bundle exec rake test              # Unit tests
+  bundle exec rake test:integration  # Integration tests
+  bundle exec rake test:all          # All tests
 ```
 
 ---
@@ -206,6 +250,7 @@ docker logs agent-harness --tail 20
 | F5: Docker one-command start | ✅ Complete | `docker compose up -d` |
 | F6: ENV configuration | ✅ Complete | `.env` file |
 | F7: Secrets encrypted | ✅ Complete | `bin/harness secrets_list` |
+| F8: Integration tests | ✅ Complete | `bundle exec rake test:integration` |
 
 ---
 
