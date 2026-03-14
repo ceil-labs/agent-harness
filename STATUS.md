@@ -3,7 +3,7 @@
 **For:** Next Agent
 **Last Updated:** 2026-03-14
 **Phase:** 0 (Foundation + Observability)
-**Overall Completion:** ~80%
+**Overall Completion:** ~85%
 
 ---
 
@@ -43,16 +43,22 @@ curl http://127.0.0.1:9090/health
 ```
 
 ### 4. Configuration (✅ 2026-03-14)
-| Setting | Source | Default |
-|---------|--------|---------|
-| `AGENT_ID` | `.env` | `ceil-phase0` |
-| `MODEL` | `.env` | `k2p5` |
-| `LOG_LEVEL` | `.env` | `info` |
-| `METRICS_PORT` | `.env` | `9090` |
-| `ALLOWLIST` | `.env` | (empty = all users) |
-| `SYSTEM_PROMPT` | `.env` | Built-in |
-| `telegram.bot_token` | `secrets.yml.enc` | Via `bin/harness secrets_edit` |
-| `kimi_coding.api_key` | `secrets.yml.enc` | Via `bin/harness secrets_edit` |
+| Setting | Source | Default | Options |
+|---------|--------|---------|---------|
+| `AGENT_ID` | `.env` | `ceil-phase0` | Any string |
+| `MODEL_PROVIDER` | `.env` | `kimi_coding` | `kimi_coding`, `opencode_go` |
+| `MODEL` | `.env` | Provider-dependent | See below |
+| `LOG_LEVEL` | `.env` | `info` | `debug`, `info`, `warn`, `error` |
+| `METRICS_PORT` | `.env` | `9090` | Any port |
+| `ALLOWLIST` | `.env` | (empty = all) | Comma-separated Telegram IDs |
+| `SYSTEM_PROMPT` | `.env` | Built-in | Any string |
+| `telegram.bot_token` | `secrets.yml.enc` | Via `bin/harness secrets_edit` | - |
+| `kimi_coding.api_key` | `secrets.yml.enc` | Via `bin/harness secrets_edit` | For `kimi_coding` provider |
+| `opencode_go.api_key` | `secrets.yml.enc` | Via `bin/harness secrets_edit` | For `opencode_go` provider |
+
+**Model Selection by Provider:**
+- `kimi_coding`: `k2p5`
+- `opencode_go`: `glm-5`, `kimi-k2.5`, `minimax-m2.5`
 
 ### 5. Telegram Adapter
 | Component | File | Status | How to Verify |
@@ -66,6 +72,40 @@ curl http://127.0.0.1:9090/health
 ---
 
 ## ✅ Recently Completed
+
+### OpenCode-go Provider (✅ 2026-03-14)
+**Branch:** `feat/opencode-go-provider` → ready to merge
+**Tested by:** Manual testing with GLM-5
+
+**What was built:**
+- New `OpenCodeGoLLM` adapter for OpenCode-go API
+- Supports models: `glm-5`, `kimi-k2.5`, `minimax-m2.5`
+- OpenAI-compatible request/response format
+- Provider switching via `MODEL_PROVIDER` ENV variable
+- Removed periodic health checks (now config-only validation)
+- Passive error tracking via metrics
+
+**Files changed:**
+- `lib/adapters/opencode_go_llm.rb` - New adapter
+- `lib/adapters/opencode_go_llm_test.rb` - 22 tests
+- `lib/agent_harness.rb` - Added require
+- `run_phase0.rb` - Provider switching support
+- `.env.example` - Documented provider options
+- `README.md` - Provider documentation
+- `lib/harness/harness.rb` - Removed periodic health checks
+- `spec/harness/harness_test.rb` - Removed health check tests
+
+**Key decisions:**
+- Config-only `available?` (no HTTP health checks)
+- Passive error monitoring via Grafana
+- Model IDs: `glm-5`, `kimi-k2.5`, `minimax-m2.5` (not prefixed)
+- Endpoint: `https://opencode.ai/zen/go/v1/chat/completions`
+
+**Test Results:**
+- All 120 tests pass (278 assertions)
+- Manual test: Successfully responded via Telegram using GLM-5
+
+---
 
 ### Prometheus + Grafana Stack (✅ 2026-03-14)
 **Branch:** `feat/prometheus-grafana` → merged to `main`
@@ -115,14 +155,15 @@ curl http://127.0.0.1:9090/health
 ## 📊 Test Summary
 
 ```
-Total: 101 tests, 230 assertions, 0 failures, 2 skips
+Total: 120 tests, 278 assertions, 0 failures, 2 skips
 
 Breakdown:
 - Interface contracts: 10 tests
-- Harness core: 8 tests
+- Harness core: 8 tests (removed 4 health check tests)
 - Secrets: 10 tests
 - CLI: 3 tests
 - KimiCodingLLM: 20 tests
+- OpenCodeGoLLM: 22 tests (new)
 - Observability: 34 tests (logger + metrics + server)
 - Telegram adapter: Contract tests
 
@@ -190,34 +231,30 @@ docker logs agent-harness --tail 20
 
 ---
 
-2. **Audit log:** `config/.audit.log` - intentionally gitignored
-3. **Metrics server:** Binds to `0.0.0.0:9090` inside container, `127.0.0.1:9090` externally
-4. **Kimi API format:** Anthropic-compatible (not OpenAI)
-5. **Image size:** 877MB (can be optimized with multi-stage build)
-
----
-
 ## 🎯 Next Steps
 
-### Priority 1: Add OpenCode-go Provider
-**Goal:** Support multiple LLM providers via OpenCode-go API
-**Reference:** https://opencode.ai/docs/providers/#opencode-go
-**Models available:** GLM, Kimi, MiniMax
+### Priority 1: Integration Tests
+**Goal:** Add first end-to-end integration test (Telegram → Harness → LLM → Response)
 **Effort:** 2-3 hours
-**Implementation:**
-1. Create `lib/adapters/opencode_llm.rb`
-2. Follow pattern from `lib/adapters/kimi_coding_llm.rb`
-3. Update `run_phase0.rb` to use `MODEL_PROVIDER=opencode` ENV var
-4. Add tests in `spec/adapters/opencode_llm_test.rb`
+**Why now:** Fills testing gap; validates full message flow works with both providers
 
-**Key differences from Kimi adapter:**
-- Endpoint: OpenCode-go proxy (not direct Kimi API)
-- Model selection via `model` parameter (glm-5, kimi-k2.5, minimax-m2.5)
-- Same Anthropic-compatible format
+**Implementation Plan:**
+1. Create `spec/integration/harness_flow_test.rb`
+2. Add WebMock/VCR for HTTP stubbing
+3. Create test fixtures for Telegram messages
+4. Test full flow: `telegram_message → harness → llm → response`
+
+**Files to create:**
+```
+spec/integration/harness_flow_test.rb    # Full flow test
+spec/fixtures/telegram_messages.yml      # Sample message payloads
+spec/support/mock_telegram.rb            # Telegram client mocks
+spec/support/mock_llm.rb                 # LLM provider mocks
+```
 
 ---
 
-### Priority 3: WebUI for Secrets & Config
+### Priority 2: WebUI for Secrets & Config
 **Goal:** Browser-based management instead of CLI
 **Effort:** 3-4 hours
 **Features:**
@@ -246,7 +283,7 @@ webui/config.erb          # Config editor form
 
 ---
 
-### Priority 4: Improved Observability Metrics
+### Priority 3: Improved Observability Metrics
 **Goal:** Better visibility into agent behavior
 **Effort:** 1-2 hours
 **Add to `lib/observability/metrics.rb`:**

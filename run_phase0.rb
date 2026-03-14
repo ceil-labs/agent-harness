@@ -23,31 +23,30 @@ $LOAD_PATH.unshift(File.expand_path("lib", __dir__))
 require "agent_harness"
 require "async"
 
-# Configuration from ENV with defaults
-AGENT_ID = ENV.fetch("AGENT_ID", "ceil-phase0")
-MODEL_PROVIDER = ENV.fetch("MODEL_PROVIDER", "kimi_coding")
-MODEL = ENV.fetch("MODEL", model_default(MODEL_PROVIDER))
-LOG_LEVEL = ENV.fetch("LOG_LEVEL", "info").downcase.to_sym
-METRICS_PORT = ENV.fetch("METRICS_PORT", "9090").to_i
-HEALTH_CHECK_INTERVAL = ENV.fetch("HEALTH_CHECK_INTERVAL", "300").to_i
-ALLOWLIST = ENV.fetch("ALLOWLIST", "")
-  .split(",")
-  .map(&:strip)
-  .reject(&:empty?)
-  .map(&:to_i)
-SYSTEM_PROMPT = ENV.fetch("SYSTEM_PROMPT", "You are Ceil, a helpful AI assistant. Be concise and friendly.")
-
 # Determine default model based on provider
 def model_default(provider)
   case provider
   when "opencode_go"
-    "kimi-k2.5"
+    "glm-5"
   when "kimi_coding"
     "k2p5"
   else
     "k2p5"
   end
 end
+
+# Configuration from ENV with defaults
+AGENT_ID = ENV.fetch("AGENT_ID", "ceil-phase0")
+MODEL_PROVIDER = ENV.fetch("MODEL_PROVIDER", "kimi_coding")
+MODEL = ENV.fetch("MODEL", model_default(MODEL_PROVIDER))
+LOG_LEVEL = ENV.fetch("LOG_LEVEL", "info").downcase.to_sym
+METRICS_PORT = ENV.fetch("METRICS_PORT", "9090").to_i
+ALLOWLIST = ENV.fetch("ALLOWLIST", "")
+  .split(",")
+  .map(&:strip)
+  .reject(&:empty?)
+  .map(&:to_i)
+SYSTEM_PROMPT = ENV.fetch("SYSTEM_PROMPT", "You are Ceil, a helpful AI assistant. Be concise and friendly.")
 
 puts "=" * 60
 puts "Agent Harness - Phase 0 Full Integration"
@@ -142,8 +141,7 @@ harness = AgentHarness::Harness.new(
   output: output_adapter,
   llm: llm,
   config: {
-    system_prompt: SYSTEM_PROMPT,
-    health_check_interval: HEALTH_CHECK_INTERVAL
+    system_prompt: SYSTEM_PROMPT
   },
   logger: obs[:logger],
   metrics: obs[:metrics]
@@ -154,7 +152,6 @@ puts "💬 Platform: Telegram (@ceil_harness_bot)"
 llm_name = MODEL_PROVIDER == "opencode_go" ? "OpenCode-go (#{MODEL})" : "Kimi for Coding (#{MODEL})"
 puts "🧠 LLM: #{llm_name}"
 puts "📊 Metrics: http://localhost:#{METRICS_PORT}/metrics"
-puts "💚 Health Check: every #{HEALTH_CHECK_INTERVAL}s (lightweight mode)"
 puts "🔐 Allowlist: #{ALLOWLIST.empty? ? 'all users' : ALLOWLIST.join(', ')}"
 puts ""
 puts "Send a message to @ceil_harness_bot on Telegram"

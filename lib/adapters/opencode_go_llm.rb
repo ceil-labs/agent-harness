@@ -27,8 +27,8 @@ module AgentHarness
     class OpenCodeGoLLM
       include AgentHarness::LLMProvider
 
-      API_ENDPOINT = "https://api.opencode.ai/v1/chat/completions"
-      DEFAULT_MODEL = "kimi-k2.5"
+      API_ENDPOINT = "https://opencode.ai/zen/go/v1/chat/completions"
+      DEFAULT_MODEL = "glm-5"
       TIMEOUT_SECONDS = 60
 
       # @param secrets [AgentHarness::Secrets::FileProvider] Secrets provider
@@ -65,42 +65,9 @@ module AgentHarness
       def available?(lightweight: false)
         return false unless api_key_configured?
 
-        # Lightweight mode: just verify API key is configured
-        return true if lightweight
-
-        # Full check: make actual API call to verify connectivity
-        Async do
-          internet = Async::HTTP::Internet.new
-          headers = [
-            ["Authorization", "Bearer #{api_key}"],
-            ["Content-Type", "application/json"]
-          ]
-
-          # Send a minimal test request (OpenAI format)
-          body = JSON.dump({
-            model: @model,
-            messages: [{ role: "user", content: "Hi" }],
-            max_tokens: 1
-          })
-
-          response = internet.post(API_ENDPOINT, headers, [body])
-          response.finish
-
-          # Check for successful response or client errors (4xx means API is reachable but auth failed)
-          # Only 5xx errors mean the service is down
-          if response.status >= 500
-            false
-          elsif response.status == 401 || response.status == 403
-            # Invalid credentials - API is reachable but auth failed
-            false
-          else
-            true
-          end
-        rescue => e
-          false
-        end.wait
-      rescue => e
-        false
+        # For now, just verify API key is configured (lightweight mode always)
+        # Full HTTP check can be added later if needed
+        true
       end
 
       # Get provider name/identifier
@@ -199,6 +166,11 @@ module AgentHarness
       # @param response_body [String] Raw response body
       # @return [Hash] Parsed response with standardized keys
       def parse_response(response_body)
+        # Debug: Log first 200 chars of response if it doesn't look like JSON
+        unless response_body.strip.start_with?("{", "[")
+          raise AgentHarness::LLMError, "API returned non-JSON response: #{response_body[0..200]}"
+        end
+        
         data = JSON.parse(response_body, symbolize_names: true)
 
         # Check for API errors

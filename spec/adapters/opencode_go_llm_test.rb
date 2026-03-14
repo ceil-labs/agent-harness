@@ -31,7 +31,7 @@ class OpenCodeGoLLMTest < Minitest::Test
   end
 
   def test_model_returns_default_model
-    assert_equal "kimi-k2.5", @llm.model
+    assert_equal AgentHarness::Adapters::OpenCodeGoLLM::DEFAULT_MODEL, @llm.model
   end
 
   def test_model_can_be_customized
@@ -80,7 +80,7 @@ class OpenCodeGoLLMTest < Minitest::Test
 
     body = @llm.send(:build_request_body, [{ role: "user", content: "Test" }], tools)
 
-    assert_equal "kimi-k2.5", body[:model]
+    assert_equal @llm.model, body[:model]
     assert body[:tools]
     assert_equal "function", body[:tools].first[:type]
     assert_equal "test_tool", body[:tools].first[:function][:name]
@@ -91,7 +91,7 @@ class OpenCodeGoLLMTest < Minitest::Test
   def test_build_request_body_without_tools
     body = @llm.send(:build_request_body, [{ role: "user", content: "Test" }], [])
 
-    assert_equal "kimi-k2.5", body[:model]
+    assert_equal @llm.model, body[:model]
     refute body[:tools]
   end
 
@@ -200,7 +200,7 @@ class OpenCodeGoLLMTest < Minitest::Test
       @llm.send(:parse_response, "invalid json")
     end
 
-    assert_includes error.message, "Failed to parse"
+    assert_includes error.message, "API returned non-JSON response"
   end
 
   def test_parse_response_raises_on_no_choices
